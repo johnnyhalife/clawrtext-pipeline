@@ -52,13 +52,17 @@ export async function clean(codename: string): Promise<void> {
   // LLM pass: smooth transitions and remove any remaining logistics references
   const ollama = new Ollama({ host: OLLAMA_URL });
 
-  const prompt = `You are editing a software engineering project history page. Clean up the following narrative sections by:
-1. Removing any remaining sentences that say the cluster had no content, no technical work, or was internal logistics
-2. Smoothing transitions between paragraphs so the narrative reads as a cohesive project history
-3. Do NOT add new information, do NOT invent details, do NOT change technical facts
-4. Return ONLY the cleaned narrative paragraphs, separated by blank lines, no headings
+  const prompt = `You are a copy editor. Your only job is to clean up the text below.
 
-Narrative to clean:
+Rules:
+- Remove any sentence that states a section had no content, no technical work, no deliverables, or was internal logistics
+- Do not add any new information
+- Do not change any technical facts, names, or details
+- Do not reorder paragraphs
+- Fix transitions between paragraphs only where a removed sentence left an awkward join
+- Return ONLY the edited text, paragraph breaks preserved, no headings, no commentary
+
+Text to edit:
 ${technical.join("\n\n")}`;
 
   console.error(`[clean] running LLM cleanup with ${CLEAN_MODEL}`);

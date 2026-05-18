@@ -1,7 +1,5 @@
-import { existsSync, readFileSync, mkdirSync } from "fs";
-import { resolve } from "path";
+import { existsSync, readFileSync } from "fs";
 import { Ollama } from "ollama";
-import { QdrantClient } from "@qdrant/js-client-rest";
 import pLimit from "p-limit";
 
 import {
@@ -15,43 +13,73 @@ import {
 import type { ExtractedThread } from "./types.js";
 
 const ollama = new Ollama({ host: OLLAMA_URL });
-const qdrant = new QdrantClient({ url: QDRANT_URL, checkCompatibility: false });
 
 const VECTOR_SIZE = 4096; // qwen3-embedding:8b output dimension
+
+// ── Qdrant REST helpers (plain fetch — bypasses undici Agent Node v26 bug) ───
+
+async function qdrantFetch(method: string, path: string, body?: unknown): Promise<unknown> {
+  const res = await fetch(`${QDRANT_URL}${path}`, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`Qdrant ${method} ${path} → ${res.status}: ${text}`);
+  }
+  return JSON.parse(text);
+}
 
 // ── Collection management ─────────────────────────────────────────────────────
 
 async function ensureCollection(name: string): Promise<void> {
   try {
-    await qdrant.getCollection(name);
+    await qdrantFetch("GET", `/collections/${name}`);
     console.error(`[embed] collection '${name}' already exists`);
   } catch {
     console.error(`[embed] creating collection '${name}'...`);
-    await qdrant.createCollection(name, {
-      vectors: {
-        size: VECTOR_SIZE,
-        distance: "Cosine",
-      },
+    await qdrantFetch("PUT", `/collections/${name}`, {
+      vectors: { size: VECTOR_SIZE, distance: "Cosine" },
     });
     console.error(`[embed] collection '${name}' created`);
   }
 }
 
+// ── Scroll existing ids ───────────────────────────────────────────────────────
+
+async function getExistingIds(collectionName: string): Promise<Set<number>> {
+  const existingIds = new Set<number>();
+  let offset: number | null = null;
+  try {
+    do {
+      const body: Record<string, unknown> = { limit: 256, with_payload: false, with_vector: false };
+      if (offset != null) body.offset = offset;
+      const result = await qdrantFetch("POST", `/collections/${collectionName}/points/scroll`, body) as {
+        result: { points: Array<{ id: number }>; next_page_offset: number | null };
+      };
+      for (const point of result.result.points) {
+        existingIds.add(point.id);
+      }
+      offset = result.result.next_page_offset;
+    } while (offset != null);
+    console.error(`[embed] ${existingIds.size} already in Qdrant`);
+  } catch {
+    console.error(`[embed] could not scroll existing points, will upsert all`);
+  }
+  return existingIds;
+}
+
 // ── Embed one thread ──────────────────────────────────────────────────────────
 
 async function embedThread(thread: ExtractedThread): Promise<number[]> {
-  // Embed topic + summary — this is what we search against
   const text = `${thread.topic}\n\n${thread.summary}`;
-  const response = await ollama.embeddings({
-    model: MODEL_EMBED,
-    prompt: text,
-  });
+  const response = await ollama.embeddings({ model: MODEL_EMBED, prompt: text });
   return response.embedding;
 }
 
-// ── Upsert to Qdrant ──────────────────────────────────────────────────────────
+// ── Stable numeric id ─────────────────────────────────────────────────────────
 
-// Stable numeric id from uid string
 function uidToNumericId(uid: string): number {
   let hash = 0;
   for (let i = 0; i < uid.length; i++) {
@@ -78,27 +106,7 @@ export async function embed(codename: string): Promise<void> {
   const collectionName = `clawrtex-${codename}`;
   await ensureCollection(collectionName);
 
-  // Check existing points to skip already-embedded threads
-  const existingIds = new Set<number>();
-  try {
-    let offset: number | undefined = undefined;
-    do {
-      const result = await qdrant.scroll(collectionName, {
-        limit: 256,
-        offset,
-        with_payload: false,
-        with_vector: false,
-      });
-      for (const point of result.points) {
-        existingIds.add(point.id as number);
-      }
-      offset = result.next_page_offset as number | undefined;
-    } while (offset != null);
-    console.error(`[embed] ${existingIds.size} already in Qdrant`);
-  } catch {
-    console.error(`[embed] could not scroll existing points, will upsert all`);
-  }
-
+  const existingIds = await getExistingIds(collectionName);
   const toEmbed = threads.filter(t => !existingIds.has(uidToNumericId(t.uid)));
   console.error(`[embed] ${toEmbed.length} threads need embedding`);
 
@@ -143,7 +151,7 @@ export async function embed(codename: string): Promise<void> {
       )
     );
 
-    await qdrant.upsert(collectionName, { points });
+    await qdrantFetch("PUT", `/collections/${collectionName}/points?wait=true`, { points });
   }
 
   console.error(`[embed] upserted ${toEmbed.length} points → collection '${collectionName}'`);

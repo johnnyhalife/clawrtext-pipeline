@@ -1,8 +1,20 @@
-import { QdrantClient } from "@qdrant/js-client-rest";
 import { QDRANT_URL } from "./config.js";
 import type { ExtractedThread, Cluster } from "./types.js";
 
-const qdrant = new QdrantClient({ url: QDRANT_URL, checkCompatibility: false });
+// ── Qdrant REST helper ────────────────────────────────────────────────────────
+
+async function qdrantFetch(method: string, path: string, body?: unknown): Promise<unknown> {
+  const res = await fetch(`${QDRANT_URL}${path}`, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`Qdrant ${method} ${path} → ${res.status}: ${text}`);
+  }
+  return JSON.parse(text);
+}
 
 // ── Cosine similarity ─────────────────────────────────────────────────────────
 
@@ -28,9 +40,6 @@ function centroid(vectors: number[][]): number[] {
 }
 
 // ── Greedy threshold clustering ───────────────────────────────────────────────
-// Simple, no external deps. Each thread joins the first cluster whose centroid
-// is above the similarity threshold. If none, starts a new cluster.
-// Good enough for POC — produces 10-30 coherent clusters on 298 threads.
 
 function clusterByThreshold(
   points: Array<{ thread: ExtractedThread; vector: number[] }>,
@@ -67,7 +76,6 @@ function clusterByThreshold(
     }
   }
 
-  // Sort by size descending
   clusters.sort((a, b) => b.threads.length - a.threads.length);
 
   return clusters.map((c, i) => ({
@@ -84,20 +92,26 @@ export async function cluster(codename: string): Promise<Cluster[]> {
 
   console.error(`[cluster] fetching all vectors from '${collectionName}'...`);
 
-  // Scroll all points with vectors
   const points: Array<{ thread: ExtractedThread; vector: number[] }> = [];
-  let offset: number | undefined = undefined;
+  let offset: number | null = null;
 
   do {
-    const result = await qdrant.scroll(collectionName, {
-      limit: 256,
-      offset,
-      with_payload: true,
-      with_vector: true,
-    });
+    const body: Record<string, unknown> = { limit: 256, with_payload: true, with_vector: true };
+    if (offset != null) body.offset = offset;
 
-    for (const point of result.points) {
-      const payload = point.payload as Record<string, unknown>;
+    const result = await qdrantFetch("POST", `/collections/${collectionName}/points/scroll`, body) as {
+      result: {
+        points: Array<{
+          id: number;
+          vector: number[];
+          payload: Record<string, unknown>;
+        }>;
+        next_page_offset: number | null;
+      };
+    };
+
+    for (const point of result.result.points) {
+      const payload = point.payload;
       const thread: ExtractedThread = {
         uid: payload.uid as string,
         codename: payload.codename as string,
@@ -108,10 +122,10 @@ export async function cluster(codename: string): Promise<Cluster[]> {
         sentiment: payload.sentiment as ExtractedThread["sentiment"],
         has_external: payload.has_external as boolean,
       };
-      points.push({ thread, vector: point.vector as number[] });
+      points.push({ thread, vector: point.vector });
     }
 
-    offset = result.next_page_offset as number | undefined;
+    offset = result.result.next_page_offset;
   } while (offset != null);
 
   console.error(`[cluster] ${points.length} points loaded`);

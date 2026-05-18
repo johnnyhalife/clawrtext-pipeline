@@ -1,8 +1,12 @@
+import { readFileSync, existsSync } from "fs";
 import { ingest } from "./ingest.js";
 import { map } from "./map.js";
 import { embed } from "./embed.js";
 import { cluster } from "./cluster.js";
 import { reduce } from "./reduce.js";
+import { synthesize } from "./synthesize.js";
+import { statePath } from "./config.js";
+import type { ExtractedThread } from "./types.js";
 
 // ── Args ──────────────────────────────────────────────────────────────────────
 
@@ -41,10 +45,27 @@ switch (phase) {
     await reduce(clusters);
     break;
   }
-  case "synthesize":
-  case "all":
-    console.error(`[pipeline] phase '${phase}' not yet implemented`);
+  case "synthesize": {
+    if (!dl) { console.error("--dl required for synthesize phase"); process.exit(1); }
+    const extractedPath = statePath(codename, "extracted.jsonl");
+    if (!existsSync(extractedPath)) { console.error("Run map phase first"); process.exit(1); }
+    const threads: ExtractedThread[] = readFileSync(extractedPath, "utf-8")
+      .split("\n").filter(Boolean).map(l => JSON.parse(l) as ExtractedThread);
+    const clusters = await cluster(codename);
+    const narratives = await reduce(clusters);
+    await synthesize(codename, narratives, threads, dl);
     break;
+  }
+  case "all": {
+    if (!dl) { console.error("--dl required for all phases"); process.exit(1); }
+    const threads = await ingest(codename, dl);
+    const extracted = await map(codename);
+    await embed(codename);
+    const clusters = await cluster(codename);
+    const narratives = await reduce(clusters);
+    await synthesize(codename, narratives, extracted, dl);
+    break;
+  }
   default:
     console.error(`Unknown phase: ${phase}`);
     process.exit(1);

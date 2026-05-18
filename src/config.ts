@@ -41,7 +41,19 @@ export const MODEL_REDUCE = "gemma4:26b";
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
+// Suffix → subdirectory mapping
+const STATE_DIRS: Record<string, string> = {
+  "threads.jsonl":    ".threads",
+  "extracted.jsonl":  ".extraction",
+  "narratives.jsonl": ".narratives",
+};
+
 export function statePath(codename: string, suffix: string): string {
+  const subdir = STATE_DIRS[suffix];
+  if (subdir) {
+    return resolve(CLAWRTEX_ROOT, "state", subdir, `${codename}.jsonl`);
+  }
+  // Fallback: project root file (e.g. nerine.json)
   return resolve(CLAWRTEX_ROOT, "state", `${codename}-${suffix}`);
 }
 

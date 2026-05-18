@@ -23,24 +23,24 @@ function buildPrompt(cluster: Cluster): string {
     .filter(Boolean)
     .slice(0, 20);
 
-  return `You are writing a factual narrative paragraph for a section of a software project's history page.
+  return `You are writing one paragraph for a software engineering project's history page. A reader should finish your paragraph understanding what was built, why it mattered, and how the team approached it.
 
-You have been given a cluster of related email threads. Synthesize only what matters for understanding what was built, decided, and delivered on this project.
+You have been given a cluster of related email threads from the project. Synthesize them into a single paragraph that answers:
+- WHAT was built or delivered? (system, component, feature, tool)
+- WHY did it matter? (client need, technical problem, constraint being solved)
+- HOW was it done? (architecture choice, key decision, method, outcome)
 
-Focus on: technical work, architectural decisions, deliverables, external interactions, and outcomes.
-Ignore: internal logistics, daily standups, routine status pings, training progress, certification completions, time-off, and administrative coordination. If this cluster is dominated by logistics with no technical or business substance, write a single sentence noting that and move on.
+If this cluster is dominated by internal logistics (standups, task assignments, routine coordination) with no engineering substance, write one sentence acknowledging that and stop.
 
 Thread summaries:
 ${summaries}
 
-${decisions.length > 0 ? `Key decisions made:\n${decisions.map(d => `- ${d}`).join("\n")}\n` : ""}
-${actionItems.length > 0 ? `Key action items:\n${actionItems.map(a => `- ${a}`).join("\n")}\n` : ""}
+${decisions.length > 0 ? `Decisions from threads:\n${decisions.map(d => `- ${d}`).join("\n")}\n` : ""}
 
 Write a single factual paragraph (3-6 sentences) that:
-- Describes what technical or business work this cluster represents
-- Mentions specific outcomes, decisions, or deliverables where they exist
-- Uses plain, neutral language — no spin, no adjectives like "excellent" or "successful"
-- Only uses names that appear in the source threads — do not invent names
+- Answers what/why/how using specific technical details from the threads
+- Names real technologies, tools, systems, and people only if they appear in the source
+- Uses plain, neutral language — no spin, no adjectives like "excellent" or "innovative"
 - Is suitable as a section of a client-facing project history page
 
 Return ONLY the paragraph text, no headings, no bullet points, no explanation.`;

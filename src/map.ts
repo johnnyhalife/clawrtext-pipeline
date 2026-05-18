@@ -51,27 +51,34 @@ Has external participants: ${thread.is_external}
 Posts:
 ${posts}
 
-You are extracting signal from a software project's communication history. Your goal is to surface what was built, decided, and delivered — not internal logistics.
+You are extracting signal from a software engineering project's communication history.
 
-Internal logistics includes: daily standups, end-of-day status updates, task assignment reminders, time-off or availability notices, compliance reminders, and routine coordination with no technical or business substance. If this thread is primarily logistics, return empty arrays for decisions and action_items and write a one-sentence summary only.
+For each thread, answer three questions:
+1. WHAT was being built or worked on? (the system, component, feature, or deliverable)
+2. WHY did it matter? (the problem it solved, the client need, the technical constraint)
+3. HOW was it approached? (the architecture decision, tool chosen, method used, outcome reached)
+
+If the thread cannot answer at least WHAT, it is internal logistics — return a one-sentence summary and empty arrays.
+
+Internal logistics: daily standups, end-of-day check-ins, task assignment reminders, availability notices, compliance reminders, routine coordination with no engineering substance.
 
 Return ONLY valid JSON (no markdown, no explanation) matching this exact schema:
 {
   "topic": "<concise topic label, max 10 words>",
-  "summary": "<2-4 sentence factual summary of what was built, decided, or delivered — omit logistics>",
+  "summary": "<2-4 sentences answering what/why/how — omit logistics, omit filler>",
   "decisions": ["<specific decision, directly traceable to thread content>", ...],
-  "action_items": ["<action item with real owner and substance — omit generic reminders>", ...],
+  "action_items": ["<action item with real owner and concrete next step>", ...],
   "sentiment": "<positive|neutral|negative|mixed>",
   "has_external": <true|false>
 }
 
 Rules:
-- decisions and action_items must be empty arrays if none exist or if the thread is logistics
-- only include a decision if it is explicitly stated or clearly implied in the thread — do not invent or generalize
-- only include an action item if it has a real owner and concrete next step — do not include generic follow-ups
+- if the thread is logistics: one-sentence summary, empty arrays for decisions and action_items
+- only include a decision if it is explicitly stated in the thread — do not invent or generalize
+- only include an action item if it names a real person from the thread and a concrete next step
 - do not fabricate names — only use names that appear in the thread
 - summary must be factual, no adjectives, no spin
-- sentiment reflects the tone of the thread, not the project
+- sentiment reflects the tone of the thread
 - has_external must match whether any non-@southworks.com sender appears`;
 }
 

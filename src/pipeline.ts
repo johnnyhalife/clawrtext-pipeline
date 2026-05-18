@@ -1,4 +1,5 @@
 import { ingest } from "./ingest.js";
+import { map } from "./map.js";
 
 // ── Args ──────────────────────────────────────────────────────────────────────
 
@@ -24,7 +25,10 @@ switch (phase) {
     await ingest(codename, dl);
     break;
   }
-  case "map":
+  case "map": {
+    await map(codename);
+    break;
+  }
   case "embed":
   case "reduce":
   case "synthesize":

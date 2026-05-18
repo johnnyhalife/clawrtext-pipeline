@@ -1,6 +1,7 @@
 import { Ollama } from "ollama";
 import pLimit from "p-limit";
-import { OLLAMA_URL, MODEL_REDUCE } from "./config.js";
+import { writeFileSync, existsSync, readFileSync } from "fs";
+import { OLLAMA_URL, MODEL_REDUCE, statePath } from "./config.js";
 import type { Cluster, ClusterNarrative } from "./types.js";
 
 const ollama = new Ollama({ host: OLLAMA_URL });
@@ -100,4 +101,21 @@ export async function reduce(clusters: Cluster[]): Promise<ClusterNarrative[]> {
   );
 
   return narratives;
+}
+
+// ── Persist / load narratives checkpoint ─────────────────────────────────────
+
+export function saveNarratives(codename: string, narratives: ClusterNarrative[]): void {
+  const path = statePath(codename, "narratives.jsonl");
+  writeFileSync(path, narratives.map(n => JSON.stringify(n)).join("\n") + "\n", "utf-8");
+  console.error(`[reduce] wrote ${narratives.length} narratives → ${path}`);
+}
+
+export function loadNarratives(codename: string): ClusterNarrative[] | null {
+  const path = statePath(codename, "narratives.jsonl");
+  if (!existsSync(path)) return null;
+  return readFileSync(path, "utf-8")
+    .split("\n")
+    .filter(Boolean)
+    .map(l => JSON.parse(l) as ClusterNarrative);
 }

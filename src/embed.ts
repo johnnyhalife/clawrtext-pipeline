@@ -118,7 +118,7 @@ export async function embed(codename: string): Promise<void> {
   let done = 0;
   const limit = pLimit(EMBED_CONCURRENCY);
 
-  const BATCH_SIZE = 32;
+  const BATCH_SIZE = 8;
   const batches: ExtractedThread[][] = [];
   for (let i = 0; i < toEmbed.length; i += BATCH_SIZE) {
     batches.push(toEmbed.slice(i, i + BATCH_SIZE));

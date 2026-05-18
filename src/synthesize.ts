@@ -80,36 +80,9 @@ function assemblePage(
     .map(c => c.narrative)
     .join("\n\n");
 
-  // Decisions across all threads
-  const allDecisions = threads
-    .flatMap(t => t.decisions)
-    .filter(Boolean)
-    .slice(0, 15);
-
-  // Action items across all threads  
-  const allActionItems = threads
-    .flatMap(t => t.action_items)
-    .filter(Boolean)
-    .slice(0, 15);
-
-  // External participants
-  const externalSenders = [...new Set(
-    threads
-      .filter(t => t.has_external)
-      .flatMap(t => []) // will add raw post senders when wired
-  )];
-
   const now = new Date().toISOString().slice(0, 10);
   const threadCount = threads.length;
   const clusterCount = narratives.length;
-
-  const decisionsSection = allDecisions.length > 0
-    ? `\n## Decisions\n${allDecisions.map(d => `- ${d}`).join("\n")}\n`
-    : "";
-
-  const actionItemsSection = allActionItems.length > 0
-    ? `\n## Action Items\n${allActionItems.map(a => `- ${a}`).join("\n")}\n`
-    : "";
 
   return `# ${codename}
 ## Identity
@@ -121,9 +94,6 @@ function assemblePage(
 
 ## Narrative
 ${narrativeBlocks}
-${decisionsSection}${actionItemsSection}
-## Quotes & Signals
-_External quotes preserved from thread data. Re-run with --with-quotes to regenerate._
 
 ## Sources
 - threads: ${threadCount} (${clusterCount} clusters)

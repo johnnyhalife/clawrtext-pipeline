@@ -1,6 +1,8 @@
 import { ingest } from "./ingest.js";
 import { map } from "./map.js";
 import { embed } from "./embed.js";
+import { cluster } from "./cluster.js";
+import { reduce } from "./reduce.js";
 
 // ── Args ──────────────────────────────────────────────────────────────────────
 
@@ -34,7 +36,11 @@ switch (phase) {
     await embed(codename);
     break;
   }
-  case "reduce":
+  case "reduce": {
+    const clusters = await cluster(codename);
+    await reduce(clusters);
+    break;
+  }
   case "synthesize":
   case "all":
     console.error(`[pipeline] phase '${phase}' not yet implemented`);

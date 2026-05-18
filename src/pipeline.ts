@@ -1,5 +1,6 @@
 import { ingest } from "./ingest.js";
 import { map } from "./map.js";
+import { embed } from "./embed.js";
 
 // ── Args ──────────────────────────────────────────────────────────────────────
 
@@ -29,7 +30,10 @@ switch (phase) {
     await map(codename);
     break;
   }
-  case "embed":
+  case "embed": {
+    await embed(codename);
+    break;
+  }
   case "reduce":
   case "synthesize":
   case "all":

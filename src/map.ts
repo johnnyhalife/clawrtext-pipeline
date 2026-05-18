@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { appendFileSync, existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { resolve } from "path";
 import { Ollama } from "ollama";
 import pLimit from "p-limit";
@@ -147,7 +147,6 @@ export async function map(codename: string): Promise<ExtractedThread[]> {
 
   // Open append stream — write incrementally so partial runs are recoverable
   const results: ExtractedThread[] = [];
-  const toWrite: Array<ExtractedThread & { _hash: string }> = [];
 
   // Separate cached vs new
   const toProcess: Thread[] = [];
@@ -168,6 +167,15 @@ export async function map(codename: string): Promise<ExtractedThread[]> {
     return results;
   }
 
+  // Seed outPath with already-cached records so wc -l reflects total from the start
+  if (cache.size > 0 && !existsSync(outPath)) {
+    writeFileSync(
+      outPath,
+      Array.from(cache.values()).map(r => JSON.stringify(r)).join("\n") + "\n",
+      "utf-8"
+    );
+  }
+
   let done = 0;
   const limit = pLimit(MAP_CONCURRENCY);
 
@@ -180,25 +188,14 @@ export async function map(codename: string): Promise<ExtractedThread[]> {
         if (done % 10 === 0 || done === toProcess.length) {
           console.error(`[map] ${done}/${toProcess.length} extracted`);
         }
-        toWrite.push({ ...extracted, _hash: hash });
+        // Append incrementally — visible via wc -l as each thread completes
+        appendFileSync(outPath, JSON.stringify({ ...extracted, _hash: hash }) + "\n", "utf-8");
         return extracted;
       })
     )
   );
 
   results.push(...newResults);
-
-  // Write full output (cache + new) — overwrite with complete set
-  const allRecords = [
-    ...Array.from(cache.values()).map(r => ({ ...r })),
-    ...toWrite,
-  ];
-  writeFileSync(
-    outPath,
-    allRecords.map(r => JSON.stringify(r)).join("\n") + "\n",
-    "utf-8"
-  );
-
-  console.error(`[map] wrote ${allRecords.length} records → ${outPath}`);
+  console.error(`[map] wrote ${results.length} total records → ${outPath}`);
   return results;
 }

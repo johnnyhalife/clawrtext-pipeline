@@ -18,7 +18,7 @@ const ollama = new Ollama({ host: OLLAMA_URL });
 // ── Cache ─────────────────────────────────────────────────────────────────────
 
 function threadHash(thread: Thread): string {
-  const content = thread.posts.map(p => p.body).join("\n");
+  const content = thread.uid + "\n" + thread.posts.map(p => p.body).join("\n");
   return createHash("sha256").update(content).digest("hex").slice(0, 16);
 }
 

@@ -2,7 +2,7 @@ import { QdrantClient } from "@qdrant/js-client-rest";
 import { QDRANT_URL } from "./config.js";
 import type { ExtractedThread, Cluster } from "./types.js";
 
-const qdrant = new QdrantClient({ url: QDRANT_URL });
+const qdrant = new QdrantClient({ url: QDRANT_URL, checkCompatibility: false });
 
 // ── Cosine similarity ─────────────────────────────────────────────────────────
 

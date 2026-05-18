@@ -15,7 +15,7 @@ import {
 import type { ExtractedThread } from "./types.js";
 
 const ollama = new Ollama({ host: OLLAMA_URL });
-const qdrant = new QdrantClient({ url: QDRANT_URL });
+const qdrant = new QdrantClient({ url: QDRANT_URL, checkCompatibility: false });
 
 const VECTOR_SIZE = 4096; // qwen3-embedding:8b output dimension
 

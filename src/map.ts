@@ -181,11 +181,12 @@ export async function map(codename: string): Promise<ExtractedThread[]> {
     return results;
   }
 
-  // Seed outPath with already-cached records so wc -l reflects total from the start
-  if (cache.size > 0 && !existsSync(outPath)) {
+  // Seed outPath with already-cached records so wc -l reflects total from the start.
+  // Always rewrite from the full results set (cached + to-process) to avoid partial-file gaps.
+  if (cache.size > 0) {
     writeFileSync(
       outPath,
-      Array.from(cache.values()).map(r => JSON.stringify(r)).join("\n") + "\n",
+      results.map(r => JSON.stringify(r)).join("\n") + "\n",
       "utf-8"
     );
   }

@@ -51,18 +51,25 @@ Has external participants: ${thread.is_external}
 Posts:
 ${posts}
 
+You are extracting signal from a software project's communication history. Your goal is to surface what was built, decided, and delivered — not internal logistics.
+
+Internal logistics includes: daily standups, end-of-day status updates, task assignment reminders, time-off or availability notices, compliance reminders, and routine coordination with no technical or business substance. If this thread is primarily logistics, return empty arrays for decisions and action_items and write a one-sentence summary only.
+
 Return ONLY valid JSON (no markdown, no explanation) matching this exact schema:
 {
   "topic": "<concise topic label, max 10 words>",
-  "summary": "<2-4 sentence factual summary of what happened in this thread>",
-  "decisions": ["<decision made>", ...],
-  "action_items": ["<action item>", ...],
+  "summary": "<2-4 sentence factual summary of what was built, decided, or delivered — omit logistics>",
+  "decisions": ["<specific decision, directly traceable to thread content>", ...],
+  "action_items": ["<action item with real owner and substance — omit generic reminders>", ...],
   "sentiment": "<positive|neutral|negative|mixed>",
   "has_external": <true|false>
 }
 
 Rules:
-- decisions and action_items may be empty arrays if none exist
+- decisions and action_items must be empty arrays if none exist or if the thread is logistics
+- only include a decision if it is explicitly stated or clearly implied in the thread — do not invent or generalize
+- only include an action item if it has a real owner and concrete next step — do not include generic follow-ups
+- do not fabricate names — only use names that appear in the thread
 - summary must be factual, no adjectives, no spin
 - sentiment reflects the tone of the thread, not the project
 - has_external must match whether any non-@southworks.com sender appears`;

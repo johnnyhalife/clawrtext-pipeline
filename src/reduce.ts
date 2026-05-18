@@ -23,9 +23,12 @@ function buildPrompt(cluster: Cluster): string {
     .filter(Boolean)
     .slice(0, 20);
 
-  return `You are writing a factual narrative paragraph for a section of a software project summary page.
+  return `You are writing a factual narrative paragraph for a section of a software project's history page.
 
-You have been given a cluster of related email threads from the project. Synthesize them into a single coherent narrative paragraph.
+You have been given a cluster of related email threads. Synthesize only what matters for understanding what was built, decided, and delivered on this project.
+
+Focus on: technical work, architectural decisions, deliverables, external interactions, and outcomes.
+Ignore: internal logistics, daily standups, routine status pings, training progress, certification completions, time-off, and administrative coordination. If this cluster is dominated by logistics with no technical or business substance, write a single sentence noting that and move on.
 
 Thread summaries:
 ${summaries}
@@ -33,11 +36,12 @@ ${summaries}
 ${decisions.length > 0 ? `Key decisions made:\n${decisions.map(d => `- ${d}`).join("\n")}\n` : ""}
 ${actionItems.length > 0 ? `Key action items:\n${actionItems.map(a => `- ${a}`).join("\n")}\n` : ""}
 
-Write a single factual paragraph (4-8 sentences) that:
-- Describes what this group of threads was about and what happened
-- Mentions specific technical work, decisions, or outcomes where they exist
-- Uses plain, neutral language — no marketing spin, no adjectives like "excellent" or "successful"
-- Is suitable as a section of a client-facing project summary
+Write a single factual paragraph (3-6 sentences) that:
+- Describes what technical or business work this cluster represents
+- Mentions specific outcomes, decisions, or deliverables where they exist
+- Uses plain, neutral language — no spin, no adjectives like "excellent" or "successful"
+- Only uses names that appear in the source threads — do not invent names
+- Is suitable as a section of a client-facing project history page
 
 Return ONLY the paragraph text, no headings, no bullet points, no explanation.`;
 }

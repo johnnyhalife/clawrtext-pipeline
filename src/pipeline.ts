@@ -5,6 +5,7 @@ import { embed } from "./embed.js";
 import { cluster } from "./cluster.js";
 import { reduce, saveNarratives, loadNarratives } from "./reduce.js";
 import { synthesize } from "./synthesize.js";
+import { clean } from "./clean.js";
 import { statePath } from "./config.js";
 import type { ExtractedThread } from "./types.js";
 
@@ -20,7 +21,7 @@ const codename = arg("codename");
 const dl = arg("dl");
 
 if (!codename) {
-  console.error("Usage: tsx src/pipeline.ts --codename <name> [--dl <address>] [--phase ingest|map|embed|reduce|synthesize|all]");
+  console.error("Usage: tsx src/pipeline.ts --codename <name> [--dl <address>] [--phase ingest|map|embed|reduce|synthesize|clean|all]");
   process.exit(1);
 }
 
@@ -63,6 +64,10 @@ switch (phase) {
     await synthesize(codename, narratives, threads, dl);
     break;
   }
+  case "clean": {
+    await clean(codename);
+    break;
+  }
   case "all": {
     if (!dl) { console.error("--dl required for all phases"); process.exit(1); }
     const threads = await ingest(codename, dl);
@@ -71,6 +76,7 @@ switch (phase) {
     const clusters = await cluster(codename);
     const narratives = await reduce(clusters);
     await synthesize(codename, narratives, extracted, dl);
+    await clean(codename);
     break;
   }
   default:

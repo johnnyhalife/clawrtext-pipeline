@@ -1,0 +1,77 @@
+import { readFileSync, writeFileSync, existsSync } from "fs";
+import { Ollama } from "ollama";
+import { projectPath } from "./config.js";
+
+const OLLAMA_URL = process.env.OLLAMA_URL ?? "https://spark.swrks.sh/ollama";
+const CLEAN_MODEL = process.env.CLEAN_MODEL ?? "gemma4:26b";
+
+const LOGISTICS_PATTERNS = [
+  /^This cluster (consists|is dominated|contains|has no)/i,
+  /^The provided (thread|email|communication)/i,
+  /^(These|This) (thread summaries?|cluster of communications?|communications?|emails?) (consist|are|is) (entirely of|dominated by) (routine|internal|daily)/i,
+  /with no documented (engineering|technical|architectural|specific)/i,
+  /no (substantive|documented|specific) (technical|engineering|architectural)/i,
+];
+
+function isLogisticsParagraph(para: string): boolean {
+  const trimmed = para.trim();
+  return LOGISTICS_PATTERNS.some(p => p.test(trimmed));
+}
+
+export async function clean(codename: string): Promise<void> {
+  const pagePath = projectPath(codename);
+  if (!existsSync(pagePath)) {
+    throw new Error(`Project page not found: ${pagePath} — run synthesize first`);
+  }
+
+  const page = readFileSync(pagePath, "utf-8");
+
+  // Split out the Narrative section
+  const narrativeMatch = page.match(/^(## Narrative\n)([\s\S]*?)(^## Sources)/m);
+  if (!narrativeMatch) {
+    console.error("[clean] no Narrative section found — skipping");
+    return;
+  }
+
+  const beforeNarrative = page.slice(0, narrativeMatch.index!);
+  const afterNarrative = page.slice(narrativeMatch.index! + narrativeMatch[0].length);
+  const narrativeBody = narrativeMatch[2];
+
+  // Split into paragraphs and filter logistics-only ones
+  const paragraphs = narrativeBody.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+  const technical = paragraphs.filter(p => !isLogisticsParagraph(p));
+  const removed = paragraphs.length - technical.length;
+
+  console.error(`[clean] ${paragraphs.length} paragraphs, removing ${removed} logistics-only`);
+
+  if (technical.length === 0) {
+    console.error("[clean] nothing left after filtering — keeping original");
+    return;
+  }
+
+  // LLM pass: smooth transitions and remove any remaining logistics references
+  const ollama = new Ollama({ host: OLLAMA_URL });
+
+  const prompt = `You are editing a software engineering project history page. Clean up the following narrative sections by:
+1. Removing any remaining sentences that say the cluster had no content, no technical work, or was internal logistics
+2. Smoothing transitions between paragraphs so the narrative reads as a cohesive project history
+3. Do NOT add new information, do NOT invent details, do NOT change technical facts
+4. Return ONLY the cleaned narrative paragraphs, separated by blank lines, no headings
+
+Narrative to clean:
+${technical.join("\n\n")}`;
+
+  console.error(`[clean] running LLM cleanup with ${CLEAN_MODEL}`);
+
+  const response = await ollama.chat({
+    model: CLEAN_MODEL,
+    messages: [{ role: "user", content: prompt }],
+    options: { temperature: 0.1 },
+  });
+
+  const cleaned = response.message.content.trim();
+
+  const newPage = `${beforeNarrative}## Narrative\n${cleaned}\n\n## Sources${afterNarrative}`;
+  writeFileSync(pagePath, newPage, "utf-8");
+  console.error(`[clean] wrote cleaned page → ${pagePath}`);
+}

@@ -52,14 +52,15 @@ export async function clean(codename: string): Promise<void> {
   // LLM pass: smooth transitions and remove any remaining logistics references
   const ollama = new Ollama({ host: OLLAMA_URL, fetch: (url: RequestInfo | URL, init?: RequestInit) => fetch(url as RequestInfo, { ...init, signal: AbortSignal.timeout(300_000) }) });
 
-  const prompt = `You are a copy editor. Your only job is to clean up the text below.
+  const prompt = `You are a copy editor working on a software engineering project history page. The text below is a set of paragraphs describing different phases of the same project. Your job is to make it read as one cohesive narrative.
 
 Rules:
-- Remove any sentence that states a section had no content, no technical work, no deliverables, or was internal logistics
 - Do not add any new information
 - Do not change any technical facts, names, or details
 - Do not reorder paragraphs
-- Fix transitions between paragraphs only where a removed sentence left an awkward join
+- Remove any sentence that states a section had no content, no technical work, or was internal logistics
+- Add brief transitional sentences between paragraphs where needed to connect phases of the project (e.g. "Building on this foundation...", "In parallel...", "The project then expanded to...")
+- The result should read as a single flowing project history, not a list of independent summaries
 - Return ONLY the edited text, paragraph breaks preserved, no headings, no commentary
 
 Text to edit:

@@ -54,15 +54,10 @@ function externalRatio(cluster: Cluster): number {
   return cluster.threads.filter(t => t.has_external).length / cluster.threads.length;
 }
 
-function hasDecisions(cluster: Cluster): boolean {
-  return cluster.threads.some(t => t.decisions.length > 0);
-}
-
 // ── Reduce one cluster ────────────────────────────────────────────────────────
 
 async function reduceCluster(cluster: Cluster): Promise<ClusterNarrative> {
   const ext = externalRatio(cluster);
-  const decisions = hasDecisions(cluster);
 
   // Skip trivial single-thread clusters — just use the summary directly
   if (cluster.threads.length === 1) {
@@ -72,7 +67,6 @@ async function reduceCluster(cluster: Cluster): Promise<ClusterNarrative> {
       thread_count: 1,
       topics: [cluster.threads[0].topic],
       external_ratio: ext,
-      has_decisions: decisions,
     };
   }
 
@@ -89,7 +83,6 @@ async function reduceCluster(cluster: Cluster): Promise<ClusterNarrative> {
       thread_count: cluster.threads.length,
       topics: cluster.threads.map(t => t.topic),
       external_ratio: ext,
-      has_decisions: decisions,
     };
   } catch (err) {
     console.error(`[reduce] cluster ${cluster.id} failed: ${err}`);
@@ -100,7 +93,6 @@ async function reduceCluster(cluster: Cluster): Promise<ClusterNarrative> {
       thread_count: cluster.threads.length,
       topics: cluster.threads.map(t => t.topic),
       external_ratio: ext,
-      has_decisions: decisions,
     };
   }
 }

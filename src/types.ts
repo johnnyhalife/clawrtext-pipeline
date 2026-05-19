@@ -55,7 +55,6 @@ export interface ClusterNarrative {
   thread_count: number;
   topics: string[];
   external_ratio: number;  // fraction of threads with has_external=true (0–1)
-  has_decisions: boolean;  // true if any thread in the cluster has at least one decision
 }
 
 // ── Delta state ───────────────────────────────────────────────────────────────

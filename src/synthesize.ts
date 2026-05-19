@@ -86,7 +86,7 @@ function assemblePage(
   // Filter: keep clusters with external signal OR explicit decisions.
   // Pure internal clusters with no decisions are logistics — drop them from the narrative.
   // Fall back to all clusters if filtering leaves nothing (shouldn't happen in practice).
-  const signalClusters = narratives.filter(c => c.external_ratio > 0 || c.has_decisions);
+  const signalClusters = narratives.filter(c => c.external_ratio > 0);
   const pool = signalClusters.length > 0 ? signalClusters : narratives;
 
   const dropped = narratives.length - pool.length;

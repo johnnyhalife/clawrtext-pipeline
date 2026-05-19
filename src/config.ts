@@ -37,7 +37,7 @@ export const credentials = loadCredentials();
 
 export const MODEL_MAP = "phi4:14b";
 export const MODEL_EMBED = "qwen3-embedding:8b";
-export const MODEL_REDUCE = process.env.MODEL_REDUCE ?? "qwen3.6:35b";
+export const MODEL_REDUCE = process.env.MODEL_REDUCE ?? "phi4:14b";
 export const MODEL_SYNTHESIZE = process.env.MODEL_SYNTHESIZE ?? "phi4:14b";  // stack extraction
 
 // ── Paths ─────────────────────────────────────────────────────────────────────

@@ -16,13 +16,14 @@ function arg(name: string): string | undefined {
   return idx !== -1 ? process.argv[idx + 1] : undefined;
 }
 
-const phase = arg("phase") ?? "refresh";
+const phase = arg("phase") ?? "all";
 const codename = arg("codename");
 const dl = arg("dl");
 
 if (!codename) {
   console.error("Usage: tsx src/pipeline.ts --codename <name> [--dl <address>] [--phase ingest|map|embed|cluster|reduce|synthesize|clean|all|refresh]");
-  console.error("  refresh (default): map → embed → cluster → reduce → synthesize → clean (skips ingest, uses cached threads)");
+  console.error("  all (default): ingest → map → embed → cluster → reduce → synthesize → clean");
+  console.error("  refresh: map → embed → cluster → reduce → synthesize → clean (skips ingest, uses cached threads)");
   console.error("  all: ingest → map → embed → cluster → reduce → synthesize → clean");
   process.exit(1);
 }

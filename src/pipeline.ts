@@ -16,12 +16,14 @@ function arg(name: string): string | undefined {
   return idx !== -1 ? process.argv[idx + 1] : undefined;
 }
 
-const phase = arg("phase") ?? "all";
+const phase = arg("phase") ?? "refresh";
 const codename = arg("codename");
 const dl = arg("dl");
 
 if (!codename) {
-  console.error("Usage: tsx src/pipeline.ts --codename <name> [--dl <address>] [--phase ingest|map|embed|reduce|synthesize|clean|all]");
+  console.error("Usage: tsx src/pipeline.ts --codename <name> [--dl <address>] [--phase ingest|map|embed|cluster|reduce|synthesize|clean|all|refresh]");
+  console.error("  refresh (default): map → embed → cluster → reduce → synthesize → clean (skips ingest, uses cached threads)");
+  console.error("  all: ingest → map → embed → cluster → reduce → synthesize → clean");
   process.exit(1);
 }
 
@@ -68,6 +70,17 @@ switch (phase) {
     await clean(codename);
     break;
   }
+  case "refresh": {
+    if (!dl) { console.error("--dl required for refresh phase"); process.exit(1); }
+    const extracted = await map(codename);
+    await embed(codename);
+    const clusters = await cluster(codename);
+    const narratives = await reduce(clusters);
+    saveNarratives(codename, narratives);
+    await synthesize(codename, narratives, extracted, dl);
+    await clean(codename);
+    break;
+  }
   case "all": {
     if (!dl) { console.error("--dl required for all phases"); process.exit(1); }
     const threads = await ingest(codename, dl);
@@ -75,6 +88,7 @@ switch (phase) {
     await embed(codename);
     const clusters = await cluster(codename);
     const narratives = await reduce(clusters);
+    saveNarratives(codename, narratives);
     await synthesize(codename, narratives, extracted, dl);
     await clean(codename);
     break;

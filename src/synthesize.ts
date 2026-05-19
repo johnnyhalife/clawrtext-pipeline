@@ -68,22 +68,32 @@ function computePeriod(codename: string, existingPeriod: string): string {
 
 // ── Stack extraction ─────────────────────────────────────────────────────────
 
-async function extractStack(narratives: ClusterNarrative[]): Promise<string> {
+async function extractStack(threads: ExtractedThread[]): Promise<string> {
   const ollama = new Ollama({ host: OLLAMA_URL });
-  const context = narratives.map(n => n.narrative).join("\n\n");
 
-  const prompt = `You are extracting the technology stack from a software project narrative.
+  // Use only external threads — they contain the real project tech signal.
+  // Internal threads are logistics and produce phantom tech (K8s, React, etc. from unrelated clusters).
+  const external = threads.filter(t => t.has_external);
+  const pool = external.length > 0 ? external : threads;
+  console.error(`[synthesize] stack extraction: using ${pool.length}/${threads.length} ${external.length > 0 ? 'external' : 'all'} threads`);
 
-Extract every specific technology, tool, platform, framework, language, service, or API mentioned.
+  const context = pool.map(t => `Topic: ${t.topic}\n${t.summary}`).join("\n\n");
+
+  const prompt = `You are extracting the technology stack from a software project.
+
+Read the following thread summaries and extract the specific technologies, tools, platforms, frameworks, languages, services, or APIs central to the work delivered.
 
 Rules:
 - Return ONLY a comma-separated list of technology names, nothing else
 - Use canonical names (e.g. ".NET 8" not "dotnet", "Azure AI Speech" not "speech service")
-- Omit generic terms like "cloud", "API", "virtual machine", "testing" unless part of a proper product name
+- Include only technologies directly used in the delivered work — omit incidental mentions, training tools, and generic infrastructure
+- Omit generic terms like "cloud", "API", "virtual machine" unless part of a proper product name
+- Deduplicate: each technology appears once
+- Maximum 12 items
 - No explanation, no headings, no extra punctuation
 - If no specific technologies are mentioned, return: (none)
 
-Narrative:
+Thread summaries:
 ${context}`;
 
   try {
@@ -183,10 +193,10 @@ export async function synthesize(
     console.error(`[synthesize] preserving manually-filled fields: ${manualFields.join(", ")}`);
   }
 
-  // Extract stack from cluster narratives if not manually filled
+  // Extract stack from external thread summaries if not manually filled
   if (fields.stack === RECONCILE) {
     console.error(`[synthesize] extracting stack via ${MODEL_SYNTHESIZE}...`);
-    fields.stack = await extractStack(narratives);
+    fields.stack = await extractStack(threads);
   }
 
   const page = assemblePage(codename, fields, narratives, threads, dl);

@@ -42,6 +42,7 @@ Write a single factual paragraph (3-6 sentences) that:
 - Names real technologies, tools, systems, and people only if they appear in the source
 - Uses plain, neutral language — no spin, no adjectives like "excellent" or "innovative"
 - Is suitable as a section of a client-facing project history page
+- Do not reference internal iteration numbers, sprint labels, or cycle names (e.g. "Iteration #3", "Sprint 2") — describe the work, not the milestone label
 
 Return ONLY the paragraph text, no headings, no bullet points, no explanation.`;
 }

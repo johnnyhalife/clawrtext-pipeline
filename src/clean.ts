@@ -3,7 +3,7 @@ import { Ollama } from "ollama";
 import { projectPath } from "./config.js";
 
 const OLLAMA_URL = process.env.OLLAMA_URL ?? "https://spark.swrks.sh/ollama";
-const CLEAN_MODEL = process.env.CLEAN_MODEL ?? "gemma4:26b";
+const CLEAN_MODEL = process.env.CLEAN_MODEL ?? "qwen3.6:35b";
 
 const LOGISTICS_PATTERNS = [
   /^This cluster (consists|is dominated|contains|has no)/i,

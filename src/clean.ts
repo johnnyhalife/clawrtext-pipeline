@@ -5,19 +5,6 @@ import { projectPath } from "./config.js";
 const OLLAMA_URL = process.env.OLLAMA_URL ?? "https://spark.swrks.sh/ollama";
 const CLEAN_MODEL = process.env.CLEAN_MODEL ?? "qwen3.6:35b";
 
-const LOGISTICS_PATTERNS = [
-  /^This cluster (consists|is dominated|contains|has no)/i,
-  /^The provided (thread|email|communication)/i,
-  /^(These|This) (thread summaries?|cluster of communications?|communications?|emails?) (consist|are|is) (entirely of|dominated by) (routine|internal|daily)/i,
-  /with no documented (engineering|technical|architectural|specific)/i,
-  /no (substantive|documented|specific) (technical|engineering|architectural)/i,
-];
-
-function isLogisticsParagraph(para: string): boolean {
-  const trimmed = para.trim();
-  return LOGISTICS_PATTERNS.some(p => p.test(trimmed));
-}
-
 export async function clean(codename: string): Promise<void> {
   const pagePath = projectPath(codename);
   if (!existsSync(pagePath)) {
@@ -26,58 +13,49 @@ export async function clean(codename: string): Promise<void> {
 
   const page = readFileSync(pagePath, "utf-8");
 
-  // Split out the Narrative section
+  // Extract the Narrative section
   const narrativeMatch = page.match(/^(## Narrative\n)([\s\S]*?)(^## Sources)/m);
   if (!narrativeMatch) {
     console.error("[clean] no Narrative section found — skipping");
     return;
   }
 
-  const beforeNarrative = page.slice(0, narrativeMatch.index!);
-  const afterNarrative = page.slice(narrativeMatch.index! + narrativeMatch[0].length);
-  const narrativeBody = narrativeMatch[2];
+  const before = page.slice(0, narrativeMatch.index!) + "## Narrative\n";
+  const narrativeBody = narrativeMatch[2].trim();
+  const after = "\n\n## Sources" + page.slice(narrativeMatch.index! + narrativeMatch[0].length);
 
-  // Split into paragraphs and filter logistics-only ones
-  const paragraphs = narrativeBody.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
-  const technical = paragraphs.filter(p => !isLogisticsParagraph(p));
-  const removed = paragraphs.length - technical.length;
+  console.error(`[clean] running editorial pass on full narrative with ${CLEAN_MODEL}`);
 
-  console.error(`[clean] ${paragraphs.length} paragraphs, removing ${removed} logistics-only`);
+  const ollama = new Ollama({
+    host: OLLAMA_URL,
+    fetch: (url: RequestInfo | URL, init?: RequestInit) =>
+      fetch(url as RequestInfo, { ...init, signal: AbortSignal.timeout(600_000) }),
+  });
 
-  if (technical.length === 0) {
-    console.error("[clean] nothing left after filtering — keeping original");
-    return;
-  }
+  const prompt = `You are a copy editor working on a software engineering project history page.
 
-  // LLM pass: smooth transitions and remove any remaining logistics references
-  const ollama = new Ollama({ host: OLLAMA_URL, fetch: (url: RequestInfo | URL, init?: RequestInit) => fetch(url as RequestInfo, { ...init, signal: AbortSignal.timeout(300_000) }) });
+Below is the raw narrative for a project. It may contain paragraphs that say a section had no content, no technical work, or was internal logistics only — remove those entirely. The remaining paragraphs describe different phases of the same project and should read as one cohesive narrative.
 
-  const prompt = `You are a copy editor working on a software engineering project history page. The text below is a set of paragraphs describing different phases of the same project. Your job is to make it read as one cohesive narrative.
-
-Rules:
-- Do not add any new information
-- Do not change any technical facts, names, or details
+Your job:
+- Remove any paragraph that states it has no technical content or is purely internal logistics
+- Do not add any new technical information or facts
+- Do not change or invent technical details, names, or outcomes
 - Do not reorder paragraphs
-- Remove any sentence that states a section had no content, no technical work, or was internal logistics
-- Add brief transitional sentences between paragraphs where needed to connect phases of the project (e.g. "Building on this foundation...", "In parallel...", "The project then expanded to...")
-- The result should read as a single flowing project history, not a list of independent summaries
-- Return ONLY the edited text, paragraph breaks preserved, no headings, no commentary
+- Add brief transitional phrases between paragraphs where needed to connect the phases naturally
+- Output one flowing narrative suitable for a client-facing project history page
+- Return ONLY the edited narrative, no headings, no commentary
 
-Text to edit:
-${technical.join("\n\n")}`;
-
-  console.error(`[clean] running LLM cleanup with ${CLEAN_MODEL}`);
+Raw narrative:
+${narrativeBody}`;
 
   const response = await ollama.chat({
     model: CLEAN_MODEL,
     messages: [{ role: "user", content: prompt }],
     options: { temperature: 0.1 },
-    keep_alive: "10m",
   });
 
   const cleaned = response.message.content.trim();
-
-  const newPage = `${beforeNarrative}## Narrative\n${cleaned}\n\n## Sources${afterNarrative}`;
+  const newPage = `${before}${cleaned}${after}`;
   writeFileSync(pagePath, newPage, "utf-8");
   console.error(`[clean] wrote cleaned page → ${pagePath}`);
 }

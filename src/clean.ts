@@ -50,7 +50,7 @@ export async function clean(codename: string): Promise<void> {
   }
 
   // LLM pass: smooth transitions and remove any remaining logistics references
-  const ollama = new Ollama({ host: OLLAMA_URL });
+  const ollama = new Ollama({ host: OLLAMA_URL, fetch: (url: RequestInfo | URL, init?: RequestInit) => fetch(url as RequestInfo, { ...init, signal: AbortSignal.timeout(300_000) }) });
 
   const prompt = `You are a copy editor. Your only job is to clean up the text below.
 
@@ -71,7 +71,8 @@ ${technical.join("\n\n")}`;
     model: CLEAN_MODEL,
     messages: [{ role: "user", content: prompt }],
     options: { temperature: 0.1 },
-  });
+    keep_alive: "10m",
+  } as Parameters<typeof ollama.chat>[0]);
 
   const cleaned = response.message.content.trim();
 

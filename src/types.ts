@@ -54,6 +54,8 @@ export interface ClusterNarrative {
   narrative: string;
   thread_count: number;
   topics: string[];
+  external_ratio: number;  // fraction of threads with has_external=true (0–1)
+  has_decisions: boolean;  // true if any thread in the cluster has at least one decision
 }
 
 // ── Delta state ───────────────────────────────────────────────────────────────
@@ -63,4 +65,6 @@ export interface DeltaState {
   codename: string;
   last_fetched: string;     // ISO 8601
   last_count: number;
+  earliest: string | null;  // ISO 8601 — oldest receivedDateTime across all threads
+  latest: string | null;    // ISO 8601 — newest receivedDateTime across all threads
 }

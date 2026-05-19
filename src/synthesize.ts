@@ -83,13 +83,28 @@ function assemblePage(
   threads: ExtractedThread[],
   dl: string
 ): string {
-  // Sort clusters by thread count descending — biggest themes first
-  const sorted = [...narratives].sort((a, b) => b.thread_count - a.thread_count);
+  // Filter: keep clusters with external signal OR explicit decisions.
+  // Pure internal clusters with no decisions are logistics — drop them from the narrative.
+  // Fall back to all clusters if filtering leaves nothing (shouldn't happen in practice).
+  const signalClusters = narratives.filter(c => c.external_ratio > 0 || c.has_decisions);
+  const pool = signalClusters.length > 0 ? signalClusters : narratives;
 
-  // Narrative: top clusters only (skip clusters with 1 thread if we have enough)
+  const dropped = narratives.length - pool.length;
+  if (dropped > 0) {
+    console.error(`[synthesize] dropped ${dropped} pure-internal/no-decision clusters from narrative`);
+  }
+
+  // Sort: external-heavy clusters first, then by thread count
+  const sorted = [...pool].sort((a, b) => {
+    const extDiff = b.external_ratio - a.external_ratio;
+    if (Math.abs(extDiff) > 0.1) return extDiff; // meaningfully different external ratio
+    return b.thread_count - a.thread_count;        // tie-break by size
+  });
+
+  // Cap at 8 sections; prefer clusters with >1 thread when we have enough
   const significantClusters = sorted.filter(c => c.thread_count > 1);
   const narrativeBlocks = (significantClusters.length > 0 ? significantClusters : sorted)
-    .slice(0, 8) // cap at 8 sections
+    .slice(0, 8)
     .map(c => c.narrative)
     .join("\n\n");
 

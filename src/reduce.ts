@@ -47,9 +47,23 @@ Write a single factual paragraph (3-6 sentences) that:
 Return ONLY the paragraph text, no headings, no bullet points, no explanation.`;
 }
 
+// ── Cluster signal helpers ───────────────────────────────────────────────────
+
+function externalRatio(cluster: Cluster): number {
+  if (cluster.threads.length === 0) return 0;
+  return cluster.threads.filter(t => t.has_external).length / cluster.threads.length;
+}
+
+function hasDecisions(cluster: Cluster): boolean {
+  return cluster.threads.some(t => t.decisions.length > 0);
+}
+
 // ── Reduce one cluster ────────────────────────────────────────────────────────
 
 async function reduceCluster(cluster: Cluster): Promise<ClusterNarrative> {
+  const ext = externalRatio(cluster);
+  const decisions = hasDecisions(cluster);
+
   // Skip trivial single-thread clusters — just use the summary directly
   if (cluster.threads.length === 1) {
     return {
@@ -57,6 +71,8 @@ async function reduceCluster(cluster: Cluster): Promise<ClusterNarrative> {
       narrative: cluster.threads[0].summary,
       thread_count: 1,
       topics: [cluster.threads[0].topic],
+      external_ratio: ext,
+      has_decisions: decisions,
     };
   }
 
@@ -72,6 +88,8 @@ async function reduceCluster(cluster: Cluster): Promise<ClusterNarrative> {
       narrative: response.message.content.trim(),
       thread_count: cluster.threads.length,
       topics: cluster.threads.map(t => t.topic),
+      external_ratio: ext,
+      has_decisions: decisions,
     };
   } catch (err) {
     console.error(`[reduce] cluster ${cluster.id} failed: ${err}`);
@@ -81,6 +99,8 @@ async function reduceCluster(cluster: Cluster): Promise<ClusterNarrative> {
       narrative: cluster.threads.map(t => t.summary).join(" "),
       thread_count: cluster.threads.length,
       topics: cluster.threads.map(t => t.topic),
+      external_ratio: ext,
+      has_decisions: decisions,
     };
   }
 }

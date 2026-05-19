@@ -72,7 +72,7 @@ ${technical.join("\n\n")}`;
     messages: [{ role: "user", content: prompt }],
     options: { temperature: 0.1 },
     keep_alive: "10m",
-  } as Parameters<typeof ollama.chat>[0]);
+  });
 
   const cleaned = response.message.content.trim();
 

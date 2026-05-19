@@ -67,4 +67,4 @@ export function projectPath(codename: string): string {
 export const GRAPH_CONCURRENCY = 16;   // parallel post fetches
 export const MAP_CONCURRENCY = 4;      // parallel phi4 calls (Spark GPU limit)
 export const EMBED_CONCURRENCY = 8;    // parallel embedding calls
-export const REDUCE_CONCURRENCY = Number(process.env.REDUCE_CONCURRENCY ?? 2);
+export const REDUCE_CONCURRENCY = Number(process.env.REDUCE_CONCURRENCY ?? 4);

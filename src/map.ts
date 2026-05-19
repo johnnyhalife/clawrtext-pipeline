@@ -94,7 +94,10 @@ async function extractThread(thread: Thread): Promise<ExtractedThread> {
     try {
       const response = await ollama.chat({
         model: MODEL_MAP,
-        messages: [{ role: "user", content: buildPrompt(thread) }],
+        messages: [
+          { role: "system", content: "You are a structured data extractor. You output ONLY valid JSON. No preamble, no explanation, no markdown, no thinking. Your entire response must be a single JSON object." },
+          { role: "user", content: buildPrompt(thread) },
+        ],
         options: { temperature: 0.1 },
       });
 

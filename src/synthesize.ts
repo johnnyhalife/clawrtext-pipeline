@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { resolve, dirname } from "path";
 import { projectPath, CLAWRTEX_ROOT } from "./config.js";
-import type { ClusterNarrative, ExtractedThread } from "./types.js";
+import type { ClusterNarrative, ExtractedThread, DeltaState } from "./types.js";
 
 // ── Preserve manually-filled fields ──────────────────────────────────────────
 // Fields still containing <!-- reconcile --> are auto-generated placeholders.
@@ -46,10 +46,23 @@ function loadExistingFields(codename: string): PageFields {
 
 // ── Compute period from extracted threads ─────────────────────────────────────
 
-function computePeriod(threads: ExtractedThread[], existingPeriod: string): string {
+function loadState(codename: string): DeltaState | null {
+  const p = resolve(CLAWRTEX_ROOT, 'state', `${codename}.json`);
+  if (!existsSync(p)) return null;
+  return JSON.parse(readFileSync(p, 'utf-8')) as DeltaState;
+}
+
+function computePeriod(codename: string, existingPeriod: string): string {
   // Don't overwrite a manually-filled period
   if (existingPeriod !== RECONCILE) return existingPeriod;
-  return RECONCILE;
+
+  const state = loadState(codename);
+  if (!state?.earliest || !state?.latest) return RECONCILE;
+
+  const fmt = (iso: string) => iso.slice(0, 7); // 'YYYY-MM'
+  const start = fmt(state.earliest);
+  const end = fmt(state.latest);
+  return start === end ? start : `${start} – ${end}`;
 }
 
 // ── Build quotes from external threads ───────────────────────────────────────
@@ -116,6 +129,8 @@ export async function synthesize(
 
   // Preserve manually-filled fields from existing page
   const fields = loadExistingFields(codename);
+  // Compute period from ingest state (respects manually-filled values)
+  fields.period = computePeriod(codename, fields.period);
   const manualFields = Object.entries(fields)
     .filter(([, v]) => v !== RECONCILE)
     .map(([k]) => k);

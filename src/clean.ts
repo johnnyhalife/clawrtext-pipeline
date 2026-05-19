@@ -37,7 +37,7 @@ export async function clean(codename: string): Promise<void> {
 Tone: confident, professional, third-person. Written like a company case study — factual and precise, with editorial flow. Not a status report. Avoid passive voice where possible.
 
 Rules:
-- Remove any paragraph that states it has no technical content, no deliverables, or is purely internal logistics
+- Remove any paragraph that does not advance a reader's understanding of what was built or delivered — if a reader learns nothing about the engineering work or its outcome from a paragraph, remove it; do not keep paragraphs just because they sound technical
 - Remove any reference to internal iteration numbers, sprint labels, or cycle names (e.g. "third iteration", "Iteration #3", "Sprint 2") — describe the work, not the label
 - Do not add any new technical information or facts
 - Do not change or invent technical details, names, or outcomes

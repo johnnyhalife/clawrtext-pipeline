@@ -154,13 +154,30 @@ function loadDeltaState(codename: string): DeltaState | null {
   return JSON.parse(readFileSync(p, "utf-8")) as DeltaState;
 }
 
-function saveDeltaState(codename: string, dl: string, count: number): void {
+function saveDeltaState(
+  codename: string,
+  dl: string,
+  count: number,
+  earliest: string | null,
+  latest: string | null
+): void {
   const p = resolve(CLAWRTEX_ROOT, "state", `${codename}.json`);
+  // Preserve earliest from a prior run if this is a delta (new earliest can only go backward)
+  const existing = loadDeltaState(codename);
+  const resolvedEarliest = earliest && existing?.earliest
+    ? (earliest < existing.earliest ? earliest : existing.earliest)
+    : (earliest ?? existing?.earliest ?? null);
+  const resolvedLatest = latest && existing?.latest
+    ? (latest > existing.latest ? latest : existing.latest)
+    : (latest ?? existing?.latest ?? null);
+
   const state: DeltaState = {
     dl,
     codename,
     last_fetched: new Date().toISOString(),
     last_count: count,
+    earliest: resolvedEarliest,
+    latest: resolvedLatest,
   };
   writeFileSync(p, JSON.stringify(state, null, 2));
 }
@@ -221,12 +238,23 @@ export async function ingest(codename: string, dlAddress: string): Promise<Threa
     )
   );
 
+  // Compute date bounds across all posts
+  let earliest: string | null = null;
+  let latest: string | null = null;
+  for (const thread of threads) {
+    for (const post of thread.posts) {
+      if (!earliest || post.received < earliest) earliest = post.received;
+      if (!latest || post.received > latest) latest = post.received;
+    }
+  }
+  console.error(`[ingest] date bounds: ${earliest?.slice(0, 10) ?? "none"} → ${latest?.slice(0, 10) ?? "none"}`);
+
   // Write JSONL
   const outPath = writeThreadsJsonl(codename, threads);
   console.error(`[ingest] wrote ${threads.length} threads → ${outPath}`);
 
   // Update delta state
-  saveDeltaState(codename, dlAddress, threads.length);
+  saveDeltaState(codename, dlAddress, threads.length, earliest, latest);
   console.error(`[ingest] delta state updated`);
 
   return threads;

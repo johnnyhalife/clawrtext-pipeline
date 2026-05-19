@@ -78,6 +78,8 @@ Rules:
 - only include an action item if it names a real person from the thread and a concrete next step
 - do not fabricate names — only use names that appear in the thread
 - summary must be factual, no adjectives, no spin
+- do NOT infer motivations, rationale, or generic outcomes not explicitly stated in the thread — if the thread does not say why, do not say why
+- extract only what is explicitly written: no phrases like "to meet client requirements", "to ensure scalability", "to satisfy performance goals" unless those exact words appear in a message
 - sentiment reflects the tone of the thread
 - has_external must match whether any non-@southworks.com sender appears`;
 }

@@ -23,28 +23,35 @@ function buildPrompt(cluster: Cluster): string {
     .filter(Boolean)
     .slice(0, 20);
 
-  return `You are writing one paragraph for a software engineering project's history page. A reader should finish your paragraph understanding what was built, why it mattered, and how the team approached it.
+  return `You are writing one paragraph for a software engineering project's history page.
 
-You have been given a cluster of related email threads from the project. Synthesize them into a single paragraph that answers:
-- WHAT was built or delivered? (system, component, feature, tool)
-- WHY did it matter? (client need, technical problem, constraint being solved)
-- HOW was it done? (architecture choice, key decision, method, outcome)
+You have been given a cluster of related email threads. Synthesize them into a single paragraph.
 
-If this cluster is dominated by internal logistics (standups, task assignments, routine coordination) with no engineering substance, write one sentence acknowledging that and stop.
+CRITICAL RULES — violations make the output useless:
+- ONLY use information explicitly present in the thread summaries below. Do not infer, generalize, or fill gaps.
+- If a technology, person, or decision is not mentioned in the summaries, do not include it.
+- If the cluster lacks enough signal to write a grounded paragraph, write exactly one sentence describing what little is known, then stop. Do not pad with generic software engineering language.
+- Never use generic filler phrases like "microservices architecture", "scalability", "seamless integration", "robust solution", or "exceeded expectations" unless those exact words appear in the source.
+
+The paragraph should answer (using only what's in the threads):
+- WHAT was built or delivered?
+- WHY did it matter? (client need, technical problem)
+- HOW was it done? (specific technology, decision, outcome)
+
+If this cluster is dominated by internal logistics with no engineering substance, write: "Internal coordination threads — no engineering signal."
 
 Thread summaries:
 ${summaries}
 
 ${decisions.length > 0 ? `Decisions from threads:\n${decisions.map(d => `- ${d}`).join("\n")}\n` : ""}
 
-Write a single factual paragraph (3-6 sentences) that:
-- Answers what/why/how using specific technical details from the threads
-- Names real technologies, tools, systems, and people only if they appear in the source
-- Uses plain, neutral language — no spin, no adjectives like "excellent" or "innovative"
-- Is suitable as a section of a client-facing project history page
-- Do not reference internal iteration numbers, sprint labels, or cycle names (e.g. "Iteration #3", "Sprint 2") — describe the work, not the milestone label
+Write a single factual paragraph (3-6 sentences):
+- Grounded strictly in the thread summaries above
+- Names technologies and people only if they appear in the source
+- Plain, neutral language — no spin, no adjectives like "excellent" or "innovative"
+- No sprint labels, iteration numbers, or milestone names
 
-Return ONLY the paragraph text, no headings, no bullet points, no explanation.`;
+Return ONLY the paragraph text. No headings, no bullets, no explanation.`;
 }
 
 // ── Cluster signal helpers ───────────────────────────────────────────────────

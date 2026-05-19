@@ -1,7 +1,7 @@
 import { Ollama } from "ollama";
 import pLimit from "p-limit";
 import { writeFileSync, existsSync, readFileSync } from "fs";
-import { OLLAMA_URL, MODEL_REDUCE, statePath } from "./config.js";
+import { OLLAMA_URL, MODEL_REDUCE, REDUCE_CONCURRENCY, statePath } from "./config.js";
 import type { Cluster, ClusterNarrative } from "./types.js";
 
 const ollama = new Ollama({ host: OLLAMA_URL });
@@ -102,8 +102,8 @@ async function reduceCluster(cluster: Cluster): Promise<ClusterNarrative> {
 export async function reduce(clusters: Cluster[]): Promise<ClusterNarrative[]> {
   console.error(`[reduce] reducing ${clusters.length} clusters via ${MODEL_REDUCE}`);
 
-  // Run 2 at a time — gemma4:26b is large, don't thrash
-  const limit = pLimit(2);
+  console.error(`[reduce] concurrency=${REDUCE_CONCURRENCY}`);
+  const limit = pLimit(REDUCE_CONCURRENCY);
   let done = 0;
 
   const narratives = await Promise.all(

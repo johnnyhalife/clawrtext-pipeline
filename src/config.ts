@@ -37,7 +37,8 @@ export const credentials = loadCredentials();
 
 export const MODEL_MAP = "phi4:14b";
 export const MODEL_EMBED = "qwen3-embedding:8b";
-export const MODEL_REDUCE = "qwen3.6:35b";
+export const MODEL_REDUCE = process.env.MODEL_REDUCE ?? "qwen3.6:35b";
+export const MODEL_SYNTHESIZE = process.env.MODEL_SYNTHESIZE ?? "phi4:14b";  // stack extraction
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
@@ -66,3 +67,4 @@ export function projectPath(codename: string): string {
 export const GRAPH_CONCURRENCY = 16;   // parallel post fetches
 export const MAP_CONCURRENCY = 4;      // parallel phi4 calls (Spark GPU limit)
 export const EMBED_CONCURRENCY = 8;    // parallel embedding calls
+export const REDUCE_CONCURRENCY = Number(process.env.REDUCE_CONCURRENCY ?? 2);

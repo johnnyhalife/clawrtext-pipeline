@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
-import { resolve, dirname } from "path";
-import { projectPath, CLAWRTEX_ROOT } from "./config.js";
+import { resolve } from "path";
+import { Ollama } from "ollama";
+import { projectPath, CLAWRTEX_ROOT, OLLAMA_URL, MODEL_SYNTHESIZE } from "./config.js";
 import type { ClusterNarrative, ExtractedThread, DeltaState } from "./types.js";
 
 // ── Preserve manually-filled fields ──────────────────────────────────────────
@@ -65,13 +66,42 @@ function computePeriod(codename: string, existingPeriod: string): string {
   return start === end ? start : `${start} – ${end}`;
 }
 
-// ── Build quotes from external threads ───────────────────────────────────────
+// ── Stack extraction ─────────────────────────────────────────────────────────
 
-function buildQuotes(threads: ExtractedThread[]): string {
-  // Quotes are not regenerated from extracted data — they require raw post bodies
-  // which are in threads.jsonl, not extracted.jsonl.
-  // Placeholder for now; will be wired in synthesize when we add raw thread access.
-  return "_Quotes regenerated from thread data — see Sources._";
+async function extractStack(narratives: ClusterNarrative[]): Promise<string> {
+  const ollama = new Ollama({ host: OLLAMA_URL });
+  const context = narratives.map(n => n.narrative).join("\n\n");
+
+  const prompt = `You are extracting the technology stack from a software project narrative.
+
+Extract every specific technology, tool, platform, framework, language, service, or API mentioned.
+
+Rules:
+- Return ONLY a comma-separated list of technology names, nothing else
+- Use canonical names (e.g. ".NET 8" not "dotnet", "Azure AI Speech" not "speech service")
+- Omit generic terms like "cloud", "API", "virtual machine", "testing" unless part of a proper product name
+- No explanation, no headings, no extra punctuation
+- If no specific technologies are mentioned, return: (none)
+
+Narrative:
+${context}`;
+
+  try {
+    const response = await ollama.chat({
+      model: MODEL_SYNTHESIZE,
+      messages: [
+        { role: "system", content: "You extract technology names. Output only a comma-separated list. No explanation, no markdown, no extra text." },
+        { role: "user", content: prompt },
+      ],
+      options: { temperature: 0.0 },
+    });
+    const result = response.message.content.trim();
+    console.error(`[synthesize] stack extracted: ${result}`);
+    return result === "(none)" ? RECONCILE : result;
+  } catch (err) {
+    console.error(`[synthesize] stack extraction failed: ${err}`);
+    return RECONCILE;
+  }
 }
 
 // ── Assemble the page ─────────────────────────────────────────────────────────
@@ -151,6 +181,12 @@ export async function synthesize(
     .map(([k]) => k);
   if (manualFields.length > 0) {
     console.error(`[synthesize] preserving manually-filled fields: ${manualFields.join(", ")}`);
+  }
+
+  // Extract stack from cluster narratives if not manually filled
+  if (fields.stack === RECONCILE) {
+    console.error(`[synthesize] extracting stack via ${MODEL_SYNTHESIZE}...`);
+    fields.stack = await extractStack(narratives);
   }
 
   const page = assemblePage(codename, fields, narratives, threads, dl);

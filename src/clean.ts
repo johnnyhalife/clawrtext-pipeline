@@ -1,9 +1,8 @@
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { Ollama } from "ollama";
-import { projectPath } from "./config.js";
+import { projectPath, OLLAMA_URL } from "./config.js";
 
-const OLLAMA_URL = process.env.OLLAMA_URL ?? "https://spark.swrks.sh/ollama";
-const CLEAN_MODEL = process.env.CLEAN_MODEL ?? "qwen3.6:35b";
+const CLEAN_MODEL = process.env.CLEAN_MODEL ?? "phi4:14b";
 
 export async function clean(codename: string): Promise<void> {
   const pagePath = projectPath(codename);

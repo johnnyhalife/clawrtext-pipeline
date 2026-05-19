@@ -32,20 +32,21 @@ export async function clean(codename: string): Promise<void> {
       fetch(url as RequestInfo, { ...init, signal: AbortSignal.timeout(600_000) }),
   });
 
-  const prompt = `You are a copy editor working on a software engineering project history page.
+  const prompt = `You are a senior technical editor preparing a project history page for a professional services firm's portfolio. The text below describes different phases of a software engineering engagement. Your job is to transform it into a single, polished narrative.
 
-Below is the raw narrative for a project. It may contain paragraphs that say a section had no content, no technical work, or was internal logistics only — remove those entirely. The remaining paragraphs describe different phases of the same project and should read as one cohesive narrative.
+Tone: confident, professional, third-person. Written like a company case study — factual and precise, with editorial flow. Not a status report. Avoid passive voice where possible.
 
-Your job:
-- Remove any paragraph that states it has no technical content or is purely internal logistics
+Rules:
+- Remove any paragraph that states it has no technical content, no deliverables, or is purely internal logistics
+- Remove any reference to internal iteration numbers, sprint labels, or cycle names (e.g. "third iteration", "Iteration #3", "Sprint 2") — describe the work, not the label
 - Do not add any new technical information or facts
 - Do not change or invent technical details, names, or outcomes
 - Do not reorder paragraphs
-- Add brief transitional phrases between paragraphs where needed to connect the phases naturally
-- Output one flowing narrative suitable for a client-facing project history page
-- Return ONLY the edited narrative, no headings, no commentary
+- Add brief transitional phrases between paragraphs to connect phases naturally
+- The result must read as one flowing project narrative, not independent summaries
+- Return ONLY the edited narrative, paragraph breaks preserved, no headings, no commentary
 
-Raw narrative:
+Text to edit:
 ${narrativeBody}`;
 
   const response = await ollama.chat({

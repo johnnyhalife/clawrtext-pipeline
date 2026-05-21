@@ -1,6 +1,7 @@
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
+import yaml from "js-yaml";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PIPELINE_ROOT = resolve(__dirname, "..");
@@ -35,11 +36,31 @@ export const credentials = loadCredentials();
 
 // ── Models ────────────────────────────────────────────────────────────────────
 
-export const MODEL_MAP = "phi4:14b";
-export const MODEL_MAP_DECKS = process.env.MODEL_MAP_DECKS ?? "nemotron3:33b";  // omni model for slide extraction
-export const MODEL_EMBED = "qwen3-embedding:8b";
-export const MODEL_REDUCE = process.env.MODEL_REDUCE ?? "qwen3.6:35b";
-export const MODEL_SYNTHESIZE = process.env.MODEL_SYNTHESIZE ?? "qwen3.6:35b";  // stack extraction
+// Load models.yaml — priority: env vars > models.yaml > hardcoded defaults
+interface ModelsYaml { [stage: string]: string; }
+
+function loadModelsYaml(): ModelsYaml {
+  const p = resolve(PIPELINE_ROOT, "models.yaml");
+  if (!existsSync(p)) return {};
+  try {
+    return (yaml.load(readFileSync(p, "utf-8")) ?? {}) as ModelsYaml;
+  } catch (e) {
+    console.error(`[config] failed to parse models.yaml: ${e}`);
+    return {};
+  }
+}
+
+const modelsYaml = loadModelsYaml();
+
+function modelFor(stage: string, envVar: string, fallback: string): string {
+  return process.env[envVar] ?? modelsYaml[stage] ?? fallback;
+}
+
+export const MODEL_MAP        = modelFor("map",        "MODEL_MAP",        "phi4:14b");
+export const MODEL_MAP_DECKS  = modelFor("map-decks",  "MODEL_MAP_DECKS",  "nemotron3:33b");
+export const MODEL_EMBED      = modelFor("embed",       "MODEL_EMBED",      "qwen3-embedding:8b");
+export const MODEL_REDUCE     = modelFor("reduce",      "MODEL_REDUCE",     "qwen3.6:35b");
+export const MODEL_SYNTHESIZE = modelFor("synthesize",  "MODEL_SYNTHESIZE", "qwen3.6:35b");
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 

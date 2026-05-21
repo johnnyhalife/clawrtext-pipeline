@@ -1,0 +1,10 @@
+# Model assignments per pipeline stage.
+# Edit here — no .ts changes needed.
+# Env vars (MODEL_MAP, MODEL_REDUCE, etc.) override these when set.
+
+map: phi4:14b
+map-decks: nemotron3:33b
+embed: qwen3-embedding:8b
+reduce: qwen3.6:35b
+synthesize: qwen3.6:35b
+clean: qwen3.6:35b

@@ -8,6 +8,8 @@ CRITICAL RULES — violations make the output useless:
 - If the cluster lacks enough signal, write exactly one sentence describing what little is known, then stop. Do not pad.
 - Never use filler phrases like "microservices architecture", "scalability", "seamless integration", "robust solution", "best practices", or "exceeded expectations" unless those exact words appear in the source.
 - Do not mention sprint numbers, iteration labels, or internal cycle names.
+- Do not mention specific dates, date ranges, or durations (e.g. "April 7 through May 18", "over three months").
+- Do not mention milestone tracking, progress tracking, or process meta-language (e.g. "tracked progress", "execution followed a structured sequence").
 - Do not mention that sources are slides, emails, or summaries — write as if describing the work directly.
 
 The paragraph must answer (using only what is in the sources):

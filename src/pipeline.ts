@@ -23,7 +23,9 @@ function hasFlag(name: string): boolean {
   return process.argv.includes(`--${name}`);
 }
 
-const phase = arg("phase") ?? "all";
+// Support CSV phases: --phase reduce,synthesize,clean
+const phaseRaw = arg("phase") ?? "all";
+const phases = phaseRaw.split(",").map(p => p.trim()).filter(Boolean);
 const codename = arg("codename");
 const dl = arg("dl");
 const source = arg("source") ?? "dl"; // "dl" | "decks"
@@ -70,30 +72,24 @@ function requireSharePoint(name: string): { site: string; folder: string } {
   }
   return entry.sharepoint;
 }
+// ── Phase runners ─────────────────────────────────────────────────────────────
 
-// ── Dispatch ──────────────────────────────────────────────────────────────────
-
-if (source === "decks") {
-  // ── Deck pipeline ────────────────────────────────────────────────────────────
+async function runDecksPhase(phase: string, codename: string): Promise<void> {
   const sp = requireSharePoint(codename);
 
   switch (phase) {
-    case "ingest": {
+    case "ingest":
       await ingestDecks(codename, sp.site, sp.folder);
       break;
-    }
-    case "map": {
+    case "map":
       await mapDecks(codename);
       break;
-    }
-    case "embed": {
+    case "embed":
       await embed(codename);
       break;
-    }
-    case "cluster": {
+    case "cluster":
       await cluster(codename);
       break;
-    }
     case "reduce": {
       const clusters = await cluster(codename);
       const narratives = await reduce(clusters);
@@ -116,12 +112,10 @@ if (source === "decks") {
       await synthesize(codename, narratives, threads, null);
       break;
     }
-    case "clean": {
+    case "clean":
       await clean(codename);
       break;
-    }
     case "refresh": {
-      // Skip ingest, re-run map → clean
       const extracted = await mapDecks(codename);
       await embed(codename);
       const clusters = await cluster(codename);
@@ -131,8 +125,7 @@ if (source === "decks") {
       await clean(codename);
       break;
     }
-    case "all":
-    default: {
+    case "all": {
       const threads = await ingestDecks(codename, sp.site, sp.folder);
       const extracted = await mapDecks(codename);
       await embed(codename);
@@ -143,28 +136,27 @@ if (source === "decks") {
       await clean(codename);
       break;
     }
+    default:
+      console.error(`Unknown phase: ${phase}`);
+      process.exit(1);
   }
-} else {
-  // ── DL pipeline (original) ────────────────────────────────────────────────────
+}
 
+async function runDlPhase(phase: string, codename: string, dl: string | undefined): Promise<void> {
   switch (phase) {
-    case "ingest": {
+    case "ingest":
       if (!dl) { console.error("--dl required for ingest phase"); process.exit(1); }
-      await ingest(codename, dl);
+      await ingest(codename, dl!);
       break;
-    }
-    case "map": {
+    case "map":
       await map(codename);
       break;
-    }
-    case "embed": {
+    case "embed":
       await embed(codename);
       break;
-    }
-    case "cluster": {
+    case "cluster":
       await cluster(codename);
       break;
-    }
     case "reduce": {
       const clusters = await cluster(codename);
       const narratives = await reduce(clusters);
@@ -185,13 +177,12 @@ if (source === "decks") {
         narratives = await reduce(clusters);
         saveNarratives(codename, narratives);
       }
-      await synthesize(codename, narratives, threads, dl);
+      await synthesize(codename, narratives, threads, dl!);
       break;
     }
-    case "clean": {
+    case "clean":
       await clean(codename);
       break;
-    }
     case "refresh": {
       if (!dl) { console.error("--dl required for refresh phase"); process.exit(1); }
       const extracted = await map(codename);
@@ -199,24 +190,35 @@ if (source === "decks") {
       const clusters = await cluster(codename);
       const narratives = await reduce(clusters);
       saveNarratives(codename, narratives);
-      await synthesize(codename, narratives, extracted, dl);
+      await synthesize(codename, narratives, extracted, dl!);
       await clean(codename);
       break;
     }
     case "all": {
       if (!dl) { console.error("--dl required for all phases"); process.exit(1); }
-      const threads = await ingest(codename, dl);
+      const threads = await ingest(codename, dl!);
       const extracted = await map(codename);
       await embed(codename);
       const clusters = await cluster(codename);
       const narratives = await reduce(clusters);
       saveNarratives(codename, narratives);
-      await synthesize(codename, narratives, extracted, dl);
+      await synthesize(codename, narratives, extracted, dl!);
       await clean(codename);
       break;
     }
     default:
       console.error(`Unknown phase: ${phase}`);
       process.exit(1);
+  }
+}
+
+// ── Dispatch (supports CSV phases) ───────────────────────────────────────────
+
+for (const phase of phases) {
+  console.error(`[pipeline] ▶ phase: ${phase}`);
+  if (source === "decks") {
+    await runDecksPhase(phase, codename);
+  } else {
+    await runDlPhase(phase, codename, dl);
   }
 }

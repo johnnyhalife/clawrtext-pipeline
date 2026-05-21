@@ -79,22 +79,17 @@ async function extractStack(threads: ExtractedThread[]): Promise<string> {
 
   const context = pool.map(t => `Topic: ${t.topic}\n${t.summary}`).join("\n\n");
 
-  const prompt = `You are extracting the technology stack from a software project.
-
-Read the following thread summaries and extract the specific technologies, tools, platforms, frameworks, languages, services, or APIs central to the work delivered.
+  const prompt = `List the core technologies used in this software project. Read the summaries and return ONLY a comma-separated list of up to 10 technology names.
 
 Rules:
-- Return ONLY a comma-separated list of technology names, nothing else
-- Use canonical names (e.g. ".NET 8" not "dotnet", "Azure AI Speech" not "speech service")
-- Include only technologies directly used in the delivered work — omit incidental mentions, training tools, and generic infrastructure
-- Omit generic terms like "cloud", "API", "virtual machine" unless part of a proper product name
-- Deduplicate: each technology appears once
-- Maximum 12 items
-- No explanation, no headings, no extra punctuation
-- If no specific technologies are mentioned, return: (none)
+- Maximum 10 items, no more
+- One word or short phrase per item (e.g. "AKS", "Temporal", "NATS", "Go", "CDKTF")
+- Only technologies central to what was built — no monitoring subtypes, no variations
+- No repetition, no explanation, no punctuation other than commas
+- If nothing is clear, return: (none)
 
-Thread summaries:
-${context}`;
+Summaries:
+${context.slice(0, 3000)}`;
 
   try {
     const response = await ollama.chat({
@@ -103,11 +98,21 @@ ${context}`;
         { role: "system", content: "You extract technology names. Output only a comma-separated list. No explanation, no markdown, no extra text." },
         { role: "user", content: prompt },
       ],
-      options: { temperature: 0.0 },
+      options: { temperature: 0.0, num_predict: 200 },
     });
-    const result = response.message.content.trim();
+    const raw = response.message.content.trim();
+
+    // Dedup + cap: split on comma, trim, unique, max 12
+    const items = raw
+      .split(",")
+      .map((s: string) => s.trim())
+      .filter((s: string) => s.length > 0 && s !== "(none)")
+      .filter((s: string, i: number, arr: string[]) => arr.indexOf(s) === i) // dedup
+      .slice(0, 12);
+
+    const result = items.length > 0 ? items.join(", ") : RECONCILE;
     console.error(`[synthesize] stack extracted: ${result}`);
-    return result === "(none)" ? RECONCILE : result;
+    return result;
   } catch (err) {
     console.error(`[synthesize] stack extraction failed: ${err}`);
     return RECONCILE;
@@ -121,7 +126,7 @@ function assemblePage(
   fields: PageFields,
   narratives: ClusterNarrative[],
   threads: ExtractedThread[],
-  dl: string
+  dl: string | null
 ): string {
   // Filter: keep clusters with external signal OR explicit decisions.
   // Pure internal clusters with no decisions are logistics — drop them from the narrative.
@@ -152,6 +157,8 @@ function assemblePage(
   const threadCount = threads.length;
   const clusterCount = narratives.length;
 
+  const sourceLabel = dl ? `dl: ${dl}` : `source: iteration-review-decks`;
+
   return `# ${codename}
 ## Identity
 - **Customer:** ${fields.customer}
@@ -164,8 +171,8 @@ function assemblePage(
 ${narrativeBlocks}
 
 ## Sources
-- threads: ${threadCount} (${clusterCount} clusters)
-- dl: ${dl}
+- slides: ${threadCount} (${clusterCount} clusters)
+- ${sourceLabel}
 - last crawl: ${now}
 - generated: ${now}
 `;
@@ -177,7 +184,7 @@ export async function synthesize(
   codename: string,
   narratives: ClusterNarrative[],
   threads: ExtractedThread[],
-  dl: string
+  dl: string | null
 ): Promise<string> {
   console.error(`[synthesize] assembling page for '${codename}'`);
   console.error(`[synthesize] ${narratives.length} cluster narratives, ${threads.length} threads`);
@@ -191,6 +198,15 @@ export async function synthesize(
     .map(([k]) => k);
   if (manualFields.length > 0) {
     console.error(`[synthesize] preserving manually-filled fields: ${manualFields.join(", ")}`);
+  }
+
+  // Clear broken stack: if it contains more than 12 comma-separated items it's a hallucination loop
+  if (fields.stack !== RECONCILE) {
+    const itemCount = fields.stack.split(",").length;
+    if (itemCount > 12) {
+      console.error(`[synthesize] stack has ${itemCount} items — looks like a hallucination loop, clearing`);
+      fields.stack = RECONCILE;
+    }
   }
 
   // Extract stack from external thread summaries if not manually filled

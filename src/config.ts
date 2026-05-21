@@ -36,9 +36,10 @@ export const credentials = loadCredentials();
 // ── Models ────────────────────────────────────────────────────────────────────
 
 export const MODEL_MAP = "phi4:14b";
+export const MODEL_MAP_DECKS = process.env.MODEL_MAP_DECKS ?? "nemotron3:33b";  // omni model for slide extraction
 export const MODEL_EMBED = "qwen3-embedding:8b";
-export const MODEL_REDUCE = process.env.MODEL_REDUCE ?? "mistral-small3.2:24b";
-export const MODEL_SYNTHESIZE = process.env.MODEL_SYNTHESIZE ?? "phi4:14b";  // stack extraction
+export const MODEL_REDUCE = process.env.MODEL_REDUCE ?? "qwen3.6:35b";
+export const MODEL_SYNTHESIZE = process.env.MODEL_SYNTHESIZE ?? "qwen3.6:35b";  // stack extraction
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 

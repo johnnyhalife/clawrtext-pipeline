@@ -57,6 +57,32 @@ export interface ClusterNarrative {
   external_ratio: number;  // fraction of threads with has_external=true (0–1)
 }
 
+// ── Deck ingest types ───────────────────────────────────────────────────────
+
+export interface DeckFile {
+  name: string;
+  id: string;
+  size: number;
+  lastModified: string;  // ISO 8601
+  downloadUrl: string;
+}
+
+export interface DeckState {
+  codename: string;
+  files: Record<string, string>; // filename → sha256(name:lastModified) — delta key
+}
+
+// ── Registry ──────────────────────────────────────────────────────────────────
+
+export interface RegistryEntry {
+  codename: string;
+  dl?: string;
+  sharepoint?: {
+    site: string;
+    folder: string;
+  };
+}
+
 // ── Delta state ───────────────────────────────────────────────────────────────
 
 export interface DeltaState {

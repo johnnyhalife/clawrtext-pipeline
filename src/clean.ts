@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, existsSync } from "fs";
 import { Ollama } from "ollama";
 import { projectPath, OLLAMA_URL } from "./config.js";
 
-const CLEAN_MODEL = process.env.CLEAN_MODEL ?? "phi4:14b";
+const CLEAN_MODEL = process.env.CLEAN_MODEL ?? "qwen3.6:35b";
 
 export async function clean(codename: string): Promise<void> {
   const pagePath = projectPath(codename);

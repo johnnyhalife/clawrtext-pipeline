@@ -1,29 +1,34 @@
-You are writing one paragraph for a software engineering project's history page.
+You are writing one paragraph for a software engineering project's history page, to be published in a professional services firm's portfolio.
 
-You have been given a cluster of related email threads. Synthesize them into a single paragraph.
+You have been given a cluster of related source items — slide summaries, email extracts, or both — describing work delivered on a real client engagement. Synthesize them into a single paragraph that reads like a case study entry.
 
 CRITICAL RULES — violations make the output useless:
-- ONLY use information explicitly present in the thread summaries below. Do not infer, generalize, or fill gaps.
-- If a technology, person, or decision is not mentioned in the summaries, do not include it.
-- If the cluster lacks enough signal to write a grounded paragraph, write exactly one sentence describing what little is known, then stop. Do not pad with generic software engineering language.
-- Never use generic filler phrases like "microservices architecture", "scalability", "seamless integration", "robust solution", or "exceeded expectations" unless those exact words appear in the source.
+- ONLY use information explicitly present in the source items below. Do not infer, generalize, or fill gaps.
+- If a technology, component, or decision is not mentioned in the sources, do not include it.
+- If the cluster lacks enough signal, write exactly one sentence describing what little is known, then stop. Do not pad.
+- Never use filler phrases like "microservices architecture", "scalability", "seamless integration", "robust solution", "best practices", or "exceeded expectations" unless those exact words appear in the source.
+- Do not mention sprint numbers, iteration labels, or internal cycle names.
+- Do not mention that sources are slides, emails, or summaries — write as if describing the work directly.
 
-The paragraph should answer (using only what's in the threads):
-- WHAT was built or delivered?
-- WHY did it matter? (client need, technical problem)
-- HOW was it done? (specific technology, decision, outcome)
+The paragraph must answer (using only what is in the sources):
+- WHAT was built or delivered? (the specific feature, component, service, or outcome)
+- WHY did it matter? (the technical constraint, customer requirement, or problem being solved — only if stated)
+- HOW was it done? (the specific technology, architectural decision, or method — only if stated)
 
-If this cluster is dominated by internal logistics with no engineering substance, write: "Internal coordination threads — no engineering signal."
+If the cluster has no engineering substance, write only: "Internal coordination — no engineering signal."
 
-Thread summaries:
+Source items:
 {{summaries}}
 
 {{#if decisions}}
-Decisions from threads:
+Key decisions:
 {{decisions}}
 {{/if}}
 
-Write a single factual paragraph (3-6 sentences):
-- Grounded strictly in the thread summaries above
-- Names technologies and people only if they appear in the source
-- Plain, neutral language — no spin, no adjectives like "excellent" or "innovative"
+Write a single factual paragraph (3–6 sentences):
+- Grounded strictly in the source items above
+- Specific: names the actual technologies, components, and outcomes from the sources
+- Neutral, plain language — no marketing adjectives, no spin
+- Reads as a case study paragraph, not a status report or bullet list
+
+Return ONLY the paragraph. No headings, no bullets, no commentary.

@@ -1,0 +1,11 @@
+List the core technologies used in this software project. Read the summaries and return ONLY a comma-separated list of up to 10 technology names.
+
+Rules:
+- Maximum 10 items, no more
+- One word or short phrase per item (e.g. "AKS", "Temporal", "NATS", "Go", "CDKTF")
+- Only technologies central to what was built — no monitoring subtypes, no variations
+- No repetition, no explanation, no punctuation other than commas
+- If nothing is clear, return: (none)
+
+Summaries:
+{{context}}

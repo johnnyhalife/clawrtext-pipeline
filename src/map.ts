@@ -12,6 +12,7 @@ import {
   statePath,
 } from "./config.js";
 import { ExtractedThreadSchema, type Thread, type ExtractedThread } from "./types.js";
+import { renderPrompt } from "./prompts.js";
 
 const ollama = new Ollama({ host: OLLAMA_URL });
 
@@ -42,47 +43,14 @@ function buildPrompt(thread: Thread): string {
     .map(p => `[${p.received.slice(0, 10)} | ${p.sender}]\n${p.body.slice(0, 1500)}`)
     .join("\n\n---\n\n");
 
-  return `You are extracting structured metadata from an internal project email thread.
-
-Thread topic: ${thread.topic}
-Last activity: ${thread.last_delivered.slice(0, 10)}
-Has external participants: ${thread.is_external}
-
-Posts:
-${posts}
-
-You are extracting signal from a software engineering project's communication history.
-
-For each thread, answer three questions:
-1. WHAT was being built or worked on? (the system, component, feature, or deliverable)
-2. WHY did it matter? (the problem it solved, the client need, the technical constraint)
-3. HOW was it approached? (the architecture decision, tool chosen, method used, outcome reached)
-
-If the thread cannot answer at least WHAT, it is internal logistics — return a one-sentence summary and empty arrays.
-
-Internal logistics: daily standups, end-of-day check-ins, task assignment reminders, availability notices, compliance reminders, routine coordination with no engineering substance.
-
-Return ONLY valid JSON (no markdown, no explanation) matching this exact schema:
-{
-  "topic": "<concise topic label, max 10 words>",
-  "summary": "<2-4 sentences answering what/why/how — omit logistics, omit filler>",
-  "decisions": ["<specific decision, directly traceable to thread content>", ...],
-  "action_items": ["<action item with real owner and concrete next step>", ...],
-  "sentiment": "<positive|neutral|negative|mixed>",
-  "has_external": <true|false>
+  return renderPrompt("map", "user", {
+    topic: thread.topic,
+    lastActivity: thread.last_delivered.slice(0, 10),
+    isExternal: String(thread.is_external),
+    posts,
+  });
 }
 
-Rules:
-- if the thread is logistics: one-sentence summary, empty arrays for decisions and action_items
-- only include a decision if it is explicitly stated in the thread — do not invent or generalize
-- only include an action item if it names a real person from the thread and a concrete next step
-- do not fabricate names — only use names that appear in the thread
-- summary must be factual, no adjectives, no spin
-- do NOT infer motivations, rationale, or generic outcomes not explicitly stated in the thread — if the thread does not say why, do not say why
-- extract only what is explicitly written: no phrases like "to meet client requirements", "to ensure scalability", "to satisfy performance goals" unless those exact words appear in a message
-- sentiment reflects the tone of the thread
-- has_external must match whether any non-@southworks.com sender appears`;
-}
 
 // ── Extract one thread ────────────────────────────────────────────────────────
 
@@ -95,7 +63,7 @@ async function extractThread(thread: Thread): Promise<ExtractedThread> {
       const response = await ollama.chat({
         model: MODEL_MAP,
         messages: [
-          { role: "system", content: "You are a structured data extractor. You output ONLY valid JSON. No preamble, no explanation, no markdown, no thinking. Your entire response must be a single JSON object." },
+          { role: "system", content: renderPrompt("map", "system") },
           { role: "user", content: buildPrompt(thread) },
         ],
         options: { temperature: 0.1 },

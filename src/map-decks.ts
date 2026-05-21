@@ -12,6 +12,7 @@ import {
   statePath,
 } from "./config.js";
 import { ExtractedThreadSchema, type Thread, type ExtractedThread } from "./types.js";
+import { renderPrompt } from "./prompts.js";
 
 const ollama = new Ollama({ host: OLLAMA_URL });
 
@@ -40,42 +41,12 @@ function loadCache(codename: string): Map<string, ExtractedThread> {
 function buildPrompt(thread: Thread): string {
   const slide = thread.posts[0];
   const deckName = thread.topic.replace(/ – Slide \d+$/, "");
-
-  return `You are extracting structured metadata from a single slide of a software project iteration review deck.
-
-Deck: ${deckName}
-Slide: ${thread.topic}
-Date: ${slide.received.slice(0, 10)}
-
-Slide content:
-${slide.body.slice(0, 3000)}
-
-You are reading a slide from a customer-facing iteration review. These decks show what was built and delivered each sprint.
-
-For this slide, answer:
-1. WHAT was built, delivered, or demonstrated? (the feature, component, milestone, or artifact shown on this slide)
-2. WHY does it matter? (the problem solved, the goal achieved, the customer outcome — only if stated on the slide)
-3. HOW was it implemented or approached? (architecture, technology, method — only if stated on the slide)
-
-If the slide is a title slide, agenda, table of contents, or team introduction with no engineering substance — return a one-sentence summary and empty arrays.
-
-Return ONLY valid JSON (no markdown, no explanation) matching this exact schema:
-{
-  "topic": "<concise topic label, max 10 words>",
-  "summary": "<2-4 sentences answering what/why/how — factual, no spin, only what the slide states>",
-  "decisions": ["<specific decision or design choice visible on this slide>", ...],
-  "action_items": ["<concrete next step or commitment stated on this slide>", ...],
-  "sentiment": "<positive|neutral|negative|mixed>",
-  "has_external": true
-}
-
-Rules:
-- has_external is always true for deck slides (they are customer-facing by definition)
-- summary must be factual — only what the slide explicitly states, no inferred rationale
-- do NOT add generic phrases like "to meet client requirements", "to ensure scalability" — only state what is on the slide
-- decisions and action_items must be directly visible on the slide — do not invent or generalize
-- if the slide is a cover/title/agenda slide: one-sentence summary, empty arrays
-- topic must be specific to this slide's content, not just the deck name`;
+  return renderPrompt("map-decks", "user", {
+    deckName,
+    slideTopic: thread.topic,
+    slideDate: slide.received.slice(0, 10),
+    slideText: slide.body.slice(0, 3000),
+  });
 }
 
 // ── Extract one slide-thread ──────────────────────────────────────────────────
@@ -89,10 +60,7 @@ async function extractSlide(thread: Thread): Promise<ExtractedThread> {
       const response = await ollama.chat({
         model: MODEL_MAP_DECKS,
         messages: [
-          {
-            role: "system",
-            content: "You are a structured data extractor reading iteration review slides. Output ONLY valid JSON. No preamble, no explanation, no markdown, no thinking tags. Your entire response must be a single JSON object.",
-          },
+          { role: "system", content: renderPrompt("map-decks", "system") },
           { role: "user", content: buildPrompt(thread) },
         ],
         options: { temperature: 0.1 },

@@ -3,6 +3,7 @@ import pLimit from "p-limit";
 import { writeFileSync, existsSync, readFileSync } from "fs";
 import { OLLAMA_URL, MODEL_REDUCE, REDUCE_CONCURRENCY, statePath } from "./config.js";
 import type { Cluster, ClusterNarrative } from "./types.js";
+import { renderPrompt } from "./prompts.js";
 
 const ollama = new Ollama({ host: OLLAMA_URL });
 
@@ -18,40 +19,11 @@ function buildPrompt(cluster: Cluster): string {
     .filter(Boolean)
     .slice(0, 20);
 
-  const actionItems = cluster.threads
-    .flatMap(t => t.action_items)
-    .filter(Boolean)
-    .slice(0, 20);
+  const decisionsText = decisions.length > 0
+    ? decisions.map(d => `- ${d}`).join("\n")
+    : "";
 
-  return `You are writing one paragraph for a software engineering project's history page.
-
-You have been given a cluster of related email threads. Synthesize them into a single paragraph.
-
-CRITICAL RULES — violations make the output useless:
-- ONLY use information explicitly present in the thread summaries below. Do not infer, generalize, or fill gaps.
-- If a technology, person, or decision is not mentioned in the summaries, do not include it.
-- If the cluster lacks enough signal to write a grounded paragraph, write exactly one sentence describing what little is known, then stop. Do not pad with generic software engineering language.
-- Never use generic filler phrases like "microservices architecture", "scalability", "seamless integration", "robust solution", or "exceeded expectations" unless those exact words appear in the source.
-
-The paragraph should answer (using only what's in the threads):
-- WHAT was built or delivered?
-- WHY did it matter? (client need, technical problem)
-- HOW was it done? (specific technology, decision, outcome)
-
-If this cluster is dominated by internal logistics with no engineering substance, write: "Internal coordination threads — no engineering signal."
-
-Thread summaries:
-${summaries}
-
-${decisions.length > 0 ? `Decisions from threads:\n${decisions.map(d => `- ${d}`).join("\n")}\n` : ""}
-
-Write a single factual paragraph (3-6 sentences):
-- Grounded strictly in the thread summaries above
-- Names technologies and people only if they appear in the source
-- Plain, neutral language — no spin, no adjectives like "excellent" or "innovative"
-- No sprint labels, iteration numbers, or milestone names
-
-Return ONLY the paragraph text. No headings, no bullets, no explanation.`;
+  return renderPrompt("reduce", "user", { summaries, decisions: decisionsText });
 }
 
 // ── Cluster signal helpers ───────────────────────────────────────────────────

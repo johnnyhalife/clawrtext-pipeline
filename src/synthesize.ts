@@ -3,6 +3,7 @@ import { resolve } from "path";
 import { Ollama } from "ollama";
 import { projectPath, CLAWRTEX_ROOT, OLLAMA_URL, MODEL_SYNTHESIZE } from "./config.js";
 import type { ClusterNarrative, ExtractedThread, DeltaState } from "./types.js";
+import { renderPrompt } from "./prompts.js";
 
 // ── Preserve manually-filled fields ──────────────────────────────────────────
 // Fields still containing <!-- reconcile --> are auto-generated placeholders.
@@ -79,23 +80,13 @@ async function extractStack(threads: ExtractedThread[]): Promise<string> {
 
   const context = pool.map(t => `Topic: ${t.topic}\n${t.summary}`).join("\n\n");
 
-  const prompt = `List the core technologies used in this software project. Read the summaries and return ONLY a comma-separated list of up to 10 technology names.
-
-Rules:
-- Maximum 10 items, no more
-- One word or short phrase per item (e.g. "AKS", "Temporal", "NATS", "Go", "CDKTF")
-- Only technologies central to what was built — no monitoring subtypes, no variations
-- No repetition, no explanation, no punctuation other than commas
-- If nothing is clear, return: (none)
-
-Summaries:
-${context.slice(0, 3000)}`;
+  const prompt = renderPrompt("synthesize", "user", { context: context.slice(0, 3000) });
 
   try {
     const response = await ollama.chat({
       model: MODEL_SYNTHESIZE,
       messages: [
-        { role: "system", content: "You extract technology names. Output only a comma-separated list. No explanation, no markdown, no extra text." },
+        { role: "system", content: renderPrompt("synthesize", "system") },
         { role: "user", content: prompt },
       ],
       options: { temperature: 0.0, num_predict: 200 },

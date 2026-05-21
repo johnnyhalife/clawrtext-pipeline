@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { Ollama } from "ollama";
 import { projectPath, OLLAMA_URL } from "./config.js";
+import { renderPrompt } from "./prompts.js";
 
 const CLEAN_MODEL = process.env.CLEAN_MODEL ?? "qwen3.6:35b";
 
@@ -31,22 +32,7 @@ export async function clean(codename: string): Promise<void> {
       fetch(url as RequestInfo, { ...init, signal: AbortSignal.timeout(600_000) }),
   });
 
-  const prompt = `You are a senior technical editor preparing a project history page for a professional services firm's portfolio. The text below describes different phases of a software engineering engagement. Your job is to transform it into a single, polished narrative.
-
-Tone: confident, professional, third-person. Written like a company case study — factual and precise, with editorial flow. Not a status report. Avoid passive voice where possible.
-
-Rules:
-- Remove any paragraph that does not advance a reader's understanding of what was built or delivered — if a reader learns nothing about the engineering work or its outcome from a paragraph, remove it; do not keep paragraphs just because they sound technical
-- Remove any reference to internal iteration numbers, sprint labels, or cycle names (e.g. "third iteration", "Iteration #3", "Sprint 2") — describe the work, not the label
-- Do not add any new technical information or facts
-- Do not change or invent technical details, names, or outcomes
-- Do not reorder paragraphs
-- Add brief transitional phrases between paragraphs to connect phases naturally
-- The result must read as one flowing project narrative, not independent summaries
-- Return ONLY the edited narrative, paragraph breaks preserved, no headings, no commentary
-
-Text to edit:
-${narrativeBody}`;
+  const prompt = renderPrompt("clean", "user", { narrativeBody });
 
   const response = await ollama.chat({
     model: CLEAN_MODEL,

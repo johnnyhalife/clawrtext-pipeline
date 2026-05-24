@@ -4,9 +4,6 @@ Deck: {{deckName}}
 Slide: {{slideTopic}}
 Date: {{slideDate}}
 
-Slide content:
-{{slideText}}
-
 You are reading a slide from a customer-facing iteration review. These decks show what was built and delivered each sprint.
 
 For this slide, answer:

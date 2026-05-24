@@ -1,5 +1,6 @@
-import { createWriteStream, existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
-import { resolve, dirname } from "path";
+import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "fs";
+import { readdir } from "fs/promises";
+import { resolve, dirname, basename as pathBasename } from "path";
 import { createHash } from "crypto";
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
@@ -155,121 +156,88 @@ async function downloadFile(token: string, driveId: string, fileId: string, dest
   await pipeline(Readable.fromWeb(res.body as import("stream/web").ReadableStream), createWriteStream(destPath));
 }
 
-// ── PPTX slide extraction ─────────────────────────────────────────────────────
+// ── Image generation ────────────────────────────────────────────────────────────
 
-interface RawSlide {
+interface SlideImage {
   slideIndex: number;
-  title: string;
-  body: string;
+  pngPath: string;
+  md5: string;
 }
 
-async function extractPptxSlides(filePath: string): Promise<RawSlide[]> {
-  // Use python-pptx via a small inline Python script — no extra npm deps
-  const script = `
-import sys, json
-from pptx import Presentation
-from pptx.enum.shapes import PP_PLACEHOLDER
-
-path = sys.argv[1]
-prs = Presentation(path)
-slides = []
-
-for i, slide in enumerate(prs.slides):
-    texts = []
-    title = ""
-    for shape in slide.shapes:
-        if not shape.has_text_frame:
-            continue
-        t = shape.text_frame.text.strip()
-        if not t:
-            continue
-        # Safely detect title placeholder without raising on non-placeholders
-        is_title = False
-        try:
-            pf = shape.placeholder_format
-            if pf is not None and pf.idx == 0:
-                is_title = True
-        except Exception:
-            pass
-        if is_title:
-            title = t
-        else:
-            texts.append(t)
-    body = "\\n".join(texts)
-    if title or body:
-        slides.append({"slideIndex": i + 1, "title": title, "body": body})
-
-print(json.dumps(slides))
-`;
-
+async function exec(cmd: string, args: string[], cwd?: string): Promise<{ stdout: string; stderr: string }> {
   const { execFile } = await import("child_process");
   const { promisify } = await import("util");
   const execFileAsync = promisify(execFile);
-
-  try {
-    const { stdout } = await execFileAsync("python3", ["-c", script, filePath], {
-      maxBuffer: 10 * 1024 * 1024,
-    });
-    return JSON.parse(stdout) as RawSlide[];
-  } catch (err) {
-    console.error(`[ingest-decks] pptx parse failed for ${filePath}: ${err}`);
-    return [];
-  }
+  const { stdout, stderr } = await execFileAsync(cmd, args, { cwd, maxBuffer: 10 * 1024 * 1024 });
+  return { stdout: stdout.trim(), stderr: stderr.trim() };
 }
 
-// ── PDF slide extraction ──────────────────────────────────────────────────────
-
-async function extractPdfSlides(filePath: string): Promise<RawSlide[]> {
-  // Use pdfminer.six for text extraction, one page = one slide
-  const script = `
-import sys, json
-from pdfminer.high_level import extract_pages
-from pdfminer.layout import LTTextContainer
-
-path = sys.argv[1]
-slides = []
-for i, page in enumerate(extract_pages(path)):
-    texts = []
-    for element in page:
-        if isinstance(element, LTTextContainer):
-            t = element.get_text().strip()
-            if t:
-                texts.append(t)
-    body = "\\n".join(texts)
-    if body:
-        slides.append({"slideIndex": i + 1, "title": f"Page {i + 1}", "body": body})
-
-print(json.dumps(slides))
-`;
-
-  const { execFile } = await import("child_process");
-  const { promisify } = await import("util");
-  const execFileAsync = promisify(execFile);
-
-  try {
-    const { stdout } = await execFileAsync("python3", ["-c", script, filePath], {
-      maxBuffer: 10 * 1024 * 1024,
-    });
-    return JSON.parse(stdout) as RawSlide[];
-  } catch (err) {
-    console.error(`[ingest-decks] pdf parse failed for ${filePath}: ${err}`);
-    return [];
-  }
+function fileMd5Sync(filePath: string): string {
+  const buf = readFileSync(filePath);
+  return createHash("md5").update(buf).digest("hex");
 }
 
-// ── Build Thread from slide ───────────────────────────────────────────────────
+async function generateSlideImages(filePath: string, fileName: string, outDir: string): Promise<SlideImage[]> {
+  const ext = fileName.split(".").pop()!.toLowerCase();
 
-function slideToThread(codename: string, deckName: string, deckDate: string, slide: RawSlide): Thread {
+  if (ext === "pptx") {
+    const pdfName = pathBasename(filePath, ".pptx") + ".pdf";
+    const pdfPathInOutDir = resolve(outDir, pdfName);
+    // LibreOffice ignores --outdir when path has spaces; it writes next to source
+    const pdfPathNextToSource = resolve(dirname(filePath), pdfName);
+    console.error(`[ingest-decks] pptx→pdf: ${filePath}`);
+    const libreoffice = process.env.LIBREOFFICE_BIN ?? "libreoffice";
+    await exec(libreoffice, [
+      "--headless", "--convert-to", "pdf",
+      "--outdir", outDir, filePath
+    ]);
+    // Move PDF to outDir if LibreOffice ignored --outdir
+    if (!existsSync(pdfPathInOutDir) && existsSync(pdfPathNextToSource)) {
+      renameSync(pdfPathNextToSource, pdfPathInOutDir);
+      console.error(`[ingest-decks] moved pdf to outDir`);
+    }
+    filePath = pdfPathInOutDir;
+  }
+
+  const pdfPath = filePath;
+  console.error(`[ingest-decks] pdf→png: ${pdfPath}`);
+
+  await exec("pdftoppm", [
+    "-png", "-r", "150", pdfPath, resolve(outDir, "slide")
+  ]);
+
+  const filesList = await readdir(outDir);
+  const pngFiles = filesList
+    .filter(f => /^slide-\d+\.png$/.test(f))
+    .sort((a, b) => a.localeCompare(b));
+
+  const result: SlideImage[] = [];
+  for (const f of pngFiles) {
+    const pngPath = resolve(outDir, f);
+    result.push({
+      slideIndex: result.length + 1,
+      pngPath,
+      md5: fileMd5Sync(pngPath),
+    });
+  }
+
+  return result;
+}
+
+// ── Build Thread from slide image ────────────────────────────────────────────────
+
+function imageSlideToThread(codename: string, deckName: string, deckDate: string, slide: SlideImage): Thread {
   const slugDeck = deckName.replace(/\.[^.]+$/, "").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
   const uid = `deck:${codename}:${slugDeck}:slide${slide.slideIndex}`;
-  const topic = slide.title || `${deckName} – Slide ${slide.slideIndex}`;
-  const body = [slide.title ? `# ${slide.title}` : "", slide.body].filter(Boolean).join("\n\n");
+  const topic = `${deckName} – Slide ${slide.slideIndex}`;
 
+  // body = md5 of the image — used by threadHash() for cache dedup
+  const md5Body = slide.md5.toString();
   const post: Post = {
     sender: "iteration-review",
     received: deckDate,
-    is_external: true, // decks are customer-facing by definition
-    body,
+    is_external: true,
+    body: md5Body,
   };
 
   return {
@@ -338,7 +306,7 @@ export async function ingestDecks(
     }
   }
 
-  const limit = pLimit(3); // 3 concurrent downloads
+  const limit = pLimit(1); // sequential: LibreOffice can't handle concurrent conversions
   let newThreads = 0;
 
   await Promise.all(files.map(f => limit(async () => {
@@ -351,15 +319,16 @@ export async function ingestDecks(
     console.error(`[ingest-decks] downloading: ${f.name} (${(f.size / 1024 / 1024).toFixed(1)} MB)`);
     const ext = f.name.split(".").pop()!.toLowerCase();
     const destPath = resolve(tmpDir, f.name);
+    const fileNameWithoutExt = f.name.replace(/\.[^.]+$/, "");
+    const slideDir = resolve(tmpDir, `${fileNameWithoutExt}-slides`);
+    mkdirSync(slideDir, { recursive: true });
 
     await downloadFile(token, driveId, f.id, destPath);
 
-    // Extract slides
-    const slides = ext === "pptx"
-      ? await extractPptxSlides(destPath)
-      : await extractPdfSlides(destPath);
+    // Generate slide images
+    const slideImages = await generateSlideImages(destPath, f.name, slideDir);
 
-    if (slides.length === 0) {
+    if (slideImages.length === 0) {
       console.error(`[ingest-decks] warning: no slides extracted from ${f.name}`);
       return;
     }
@@ -368,14 +337,14 @@ export async function ingestDecks(
     const dateFromName = f.name.match(/^(\d{4}-?\d{2}-?\d{2})/)?.[1]?.replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3") ?? f.lastModified.slice(0, 10);
     const deckDate = `${dateFromName}T00:00:00Z`;
 
-    for (const slide of slides) {
-      const thread = slideToThread(codename, f.name, deckDate, slide);
+    for (const slide of slideImages) {
+      const thread = imageSlideToThread(codename, f.name, deckDate, slide);
       existingThreads.set(thread.uid, thread);
       newThreads++;
     }
 
     state.files[f.name] = key;
-    console.error(`[ingest-decks] extracted ${slides.length} slides from ${f.name}`);
+    console.error(`[ingest-decks] generated ${slideImages.length} slide images from ${f.name}`);
   })));
 
   // Write all threads (existing + new)

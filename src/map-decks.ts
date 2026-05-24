@@ -16,11 +16,11 @@ import { renderPrompt } from "./prompts.js";
 
 const ollama = new Ollama({ host: OLLAMA_URL });
 
-// ── Cache ─────────────────────────────────────────────────────────────────────
+// ── Cache ──────────────────────────────────────────────────────────
 
 function threadHash(thread: Thread): string {
-  const content = thread.uid + "\n" + thread.posts.map(p => p.body).join("\n");
-  return createHash("sha256").update(content).digest("hex").slice(0, 16);
+  const body = thread.posts[0].body; // MD5 hex for deck slides
+  return createHash("sha256").update(thread.uid + "\n" + body).digest("hex").slice(0, 16);
 }
 
 function loadCache(codename: string): Map<string, ExtractedThread> {
@@ -36,7 +36,24 @@ function loadCache(codename: string): Map<string, ExtractedThread> {
   return cache;
 }
 
-// ── Prompt ────────────────────────────────────────────────────────────────────
+// ── Image path from UID ──────────────────────────────────────────
+
+function deriveImagePath(thread: Thread): string | null {
+  // UID format: deck:<codename>:<slugDeck>:slide<N>
+  const codename = thread.codename;
+  const tmpDir = resolve(CLAWRTEX_ROOT, "state", ".decks-tmp", codename);
+  const slugDeck = thread.uid.split(":")[2]; // middle segment after "deck:" and codename
+
+  // Try the -slides/<##>.png pattern
+  const slideIdxMatch = thread.uid.match(/slide(\d+)$/);
+  if (!slideIdxMatch) return null;
+  const slideNum = String(parseInt(slideIdxMatch[1], 10));
+
+  const path = resolve(tmpDir, `${slugDeck}-slides`, `slide-${slideNum}.png`);
+  return existsSync(path) ? path : null;
+}
+
+// ── Prompt ─────────────────────────────────────────────────────────
 
 function buildPrompt(thread: Thread): string {
   const slide = thread.posts[0];
@@ -45,15 +62,19 @@ function buildPrompt(thread: Thread): string {
     deckName,
     slideTopic: thread.topic,
     slideDate: slide.received.slice(0, 10),
-    slideText: slide.body.slice(0, 3000),
   });
 }
 
-// ── Extract one slide-thread ──────────────────────────────────────────────────
+// ── Extract one slide-thread ───────────────────────────────────────
 
 async function extractSlide(thread: Thread): Promise<ExtractedThread> {
   const MAX_RETRIES = 2;
   let lastError: Error | null = null;
+
+  const imagePath = deriveImagePath(thread);
+  const imageData = imagePath
+    ? readFileSync(imagePath).toString("base64")
+    : null;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
@@ -61,7 +82,7 @@ async function extractSlide(thread: Thread): Promise<ExtractedThread> {
         model: MODEL_MAP_DECKS,
         messages: [
           { role: "system", content: renderPrompt("map-decks", "system") },
-          { role: "user", content: buildPrompt(thread) },
+          { role: "user", content: buildPrompt(thread), images: imageData ? [imageData] : undefined },
         ],
         options: { temperature: 0.1 },
       });
@@ -108,7 +129,7 @@ async function extractSlide(thread: Thread): Promise<ExtractedThread> {
   };
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
+// ── Main ────────────────────────────────────────────────────────────
 
 export async function mapDecks(codename: string): Promise<ExtractedThread[]> {
   const threadsPath = statePath(codename, "threads.jsonl");

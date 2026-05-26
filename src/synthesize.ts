@@ -21,12 +21,11 @@ function loadEntries(codename: string): DeckEntry[] {
 
 // Format: "### *Dec 17, 2024* - Extracted from `2024-12-17 - Sprint 1 Review.pptx` - (6 Slides)"
 function formatEntryHeader(entry: DeckEntry): string {
-  const d = new Date(entry.reduced_at);
-  const humanDate = d.toLocaleDateString("en-US", {
-    month: "short", day: "numeric", year: "numeric",
-    hour: "2-digit", minute: "2-digit", timeZone: "America/Argentina/Buenos_Aires",
-  });
-  return `### *${humanDate} GMT-3* - Extracted from \`${entry.deck_filename}\` - (${entry.slide_count} Slides)`;
+  // Use the deck's own date (from filename), not when extraction ran
+  const [year, month, day] = entry.deck_date.split("-").map(Number);
+  const d = new Date(year, month - 1, day);
+  const humanDate = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return `### *${humanDate}* - Extracted from \`${entry.deck_filename ?? entry.deck_name}\` - (${entry.slide_count} Slides)`;
 }
 
 function parseIdentityBlock(md: string): string {

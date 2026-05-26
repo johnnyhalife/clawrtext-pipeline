@@ -67,31 +67,26 @@ async function reduceSingleDeck(
   return response.message.content.trim();
 }
 
-// ── Main export ───────────────────────────────────────────────────────────────
+// ── Group slides by deck ─────────────────────────────────────────────────────
 
-export async function reduceDeck(codename: string): Promise<void> {
-  const extractedPath = statePath(codename, "extracted.jsonl");
-  if (!existsSync(extractedPath)) {
-    console.error(`[reduce] no extraction found at ${extractedPath} — run map phase first`);
-    process.exit(1);
-  }
-
-  const allSlides: ExtractedThread[] = readFileSync(extractedPath, "utf-8")
-    .split("\n")
-    .filter(Boolean)
-    .map(l => JSON.parse(l) as ExtractedThread);
-
-  // Group slides by deck_name (uid format: deck:{codename}:{deckSlug}:slide{N})
+export function groupByDeck(slides: ExtractedThread[]): Map<string, ExtractedThread[]> {
   const byDeck = new Map<string, ExtractedThread[]>();
-  for (const slide of allSlides) {
-    // uid: deck:eulophia:2025-07-14-iteration-1:slide3
+  for (const slide of slides) {
+    // uid: deck:{codename}:{deckSlug}:slide{N}
     const parts = slide.uid.split(":");
     const deckSlug = parts[2] ?? "unknown";
     if (!byDeck.has(deckSlug)) byDeck.set(deckSlug, []);
     byDeck.get(deckSlug)!.push(slide);
   }
+  return byDeck;
+}
 
-  // Load existing entries to skip already-reduced decks
+// ── Core reduce runner (accepts pre-grouped slides) ───────────────────────────
+
+export async function reduceDecks(
+  codename: string,
+  byDeck: Map<string, ExtractedThread[]>
+): Promise<void> {
   const existing = new Set(loadEntries(codename).map(e => e.deck_name));
   const pending = [...byDeck.entries()].filter(([slug]) => !existing.has(slug));
 
@@ -107,7 +102,6 @@ export async function reduceDeck(codename: string): Promise<void> {
   await Promise.all(
     pending.map(([deckSlug, slides]) =>
       limit(async () => {
-        // Reconstruct a readable deck name from slug
         const deckName = deckSlug.replace(/-/g, " ").replace(/(\d{4}) (\d{2}) (\d{2})/, "$1-$2-$3");
         console.error(`[reduce] → ${deckName} (${slides.length} slides)`);
 
@@ -121,7 +115,7 @@ export async function reduceDeck(codename: string): Promise<void> {
           reduced_at: new Date().toISOString(),
         };
 
-        appendEntry(codename, entry);
+        appendEntry(codename, entry);  // written immediately on completion
         console.error(`[reduce] ✓ ${deckName}`);
       })
     )
@@ -129,4 +123,21 @@ export async function reduceDeck(codename: string): Promise<void> {
 
   const total = loadEntries(codename).length;
   console.error(`[reduce] done — ${total} total deck entries for ${codename}`);
+}
+
+// ── Standalone phase (reads from .extraction cache) ───────────────────────────
+
+export async function reduceDeck(codename: string): Promise<void> {
+  const extractedPath = statePath(codename, "extracted.jsonl");
+  if (!existsSync(extractedPath)) {
+    console.error(`[reduce] no extraction found at ${extractedPath} — run map phase first`);
+    process.exit(1);
+  }
+
+  const allSlides: ExtractedThread[] = readFileSync(extractedPath, "utf-8")
+    .split("\n")
+    .filter(Boolean)
+    .map(l => JSON.parse(l) as ExtractedThread);
+
+  await reduceDecks(codename, groupByDeck(allSlides));
 }

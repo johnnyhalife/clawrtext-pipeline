@@ -181,10 +181,6 @@ export async function mapDecks(codename: string, deckFilter?: string): Promise<E
     return results;
   }
 
-  if (cache.size > 0) {
-    writeFileSync(outPath, results.map(r => JSON.stringify(r)).join("\n") + "\n", "utf-8");
-  }
-
   let done = 0;
   const limit = pLimit(MAP_CONCURRENCY);
 

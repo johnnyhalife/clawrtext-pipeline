@@ -44,13 +44,16 @@ function deriveImagePath(thread: Thread): string | null {
   const tmpDir = resolve(CLAWRTEX_ROOT, "state", ".decks-tmp", codename);
   const slugDeck = thread.uid.split(":")[2]; // middle segment after "deck:" and codename
 
-  // Try the -slides/<##>.png pattern
   const slideIdxMatch = thread.uid.match(/slide(\d+)$/);
   if (!slideIdxMatch) return null;
-  const slideNum = String(parseInt(slideIdxMatch[1], 10));
+  const n = parseInt(slideIdxMatch[1], 10);
 
-  const path = resolve(tmpDir, `${slugDeck}-slides`, `slide-${slideNum}.png`);
-  return existsSync(path) ? path : null;
+  // Try both zero-padded (slide-01.png) and unpadded (slide-1.png)
+  const candidates = [
+    resolve(tmpDir, `${slugDeck}-slides`, `slide-${n}.png`),
+    resolve(tmpDir, `${slugDeck}-slides`, `slide-${String(n).padStart(2, "0")}.png`),
+  ];
+  return candidates.find(p => existsSync(p)) ?? null;
 }
 
 // ── Prompt ─────────────────────────────────────────────────────────

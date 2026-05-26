@@ -364,7 +364,7 @@ export async function ingestDecks(
       const slideImages = readdirSync(slideDir)
         .filter(f => f.endsWith(".png"))
         .sort()
-        .map((png, i) => ({ slideIndex: i + 1, pngPath: resolve(slideDir, png), md5: png }));
+        .map((png, i) => ({ slideIndex: i + 1, pngPath: resolve(slideDir, png), md5: fileMd5Sync(resolve(slideDir, png)) }));
       const dateFromName = f.name.match(/^(\d{4}-?\d{2}-?\d{2})/)?.[1]?.replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3") ?? f.lastModified.slice(0, 10);
       const deckDate = `${dateFromName}T00:00:00Z`;
       for (const slide of slideImages) {

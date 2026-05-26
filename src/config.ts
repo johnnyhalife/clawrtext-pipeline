@@ -83,4 +83,4 @@ export function projectPath(codename: string): string {
 
 export const MAP_CONCURRENCY    = Number(process.env.MAP_CONCURRENCY    ?? 4);
 export const EMBED_CONCURRENCY  = Number(process.env.EMBED_CONCURRENCY  ?? 8);
-export const REDUCE_CONCURRENCY = Number(process.env.REDUCE_CONCURRENCY ?? 4);
+export const REDUCE_CONCURRENCY = Number(process.env.REDUCE_CONCURRENCY ?? 4);  // Spark GB10 handles 4 parallel qwen3.6:35b calls comfortably

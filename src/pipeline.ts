@@ -73,8 +73,8 @@ async function runPhase(phase: string): Promise<void> {
       await ingestDecks(codename!);
       await mapDecks(codename!);
       await embed(codename!);
-      await reduceDeck(codename!);
-      await updateCompiledTruth(codename!);
+      await reduceDeck(codename!);   // appends entries as each deck completes
+      await updateCompiledTruth(codename!);  // runs once all entries are written
       break;
 
     default:

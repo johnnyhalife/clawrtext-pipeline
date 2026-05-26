@@ -17,7 +17,7 @@ The paragraph must answer (using only what is in the sources):
 - WHY did it matter? (the technical constraint, customer requirement, or problem being solved — only if stated)
 - HOW was it done? (the specific technology, architectural decision, or method — only if stated)
 
-If the cluster has no engineering substance, write only: "Internal coordination — no engineering signal."
+If the cluster has genuinely no engineering substance (e.g. only title slides, agendas, or team introductions with zero technical content), write only: "Administrative or onboarding content — no engineering deliverables." This should be rare. If there is any technical content at all, write the paragraph.
 
 Source items:
 {{summaries}}

@@ -43,7 +43,7 @@ function centroid(vectors: number[][]): number[] {
 
 function clusterByThreshold(
   points: Array<{ thread: ExtractedThread; vector: number[] }>,
-  threshold: number = 0.72
+  threshold: number = 0.85
 ): Cluster[] {
   const clusters: Array<{
     threads: ExtractedThread[];

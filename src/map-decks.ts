@@ -75,6 +75,9 @@ async function extractSlide(thread: Thread): Promise<ExtractedThread> {
   let lastError: Error | null = null;
 
   const imagePath = deriveImagePath(thread);
+  if (!imagePath) {
+    console.error(`[map-decks] WARN no image found for ${thread.uid} — slide will be text-only`);
+  }
   const imageData = imagePath
     ? readFileSync(imagePath).toString("base64")
     : null;

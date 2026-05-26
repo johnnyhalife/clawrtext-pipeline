@@ -104,8 +104,8 @@ export async function reduceDecks(
   await Promise.all(
     pending.map(([deckSlug, slides]) =>
       limit(async () => {
-        // Recover original filename from topic: "2024-12-17 - Sprint 1 Review.pptx – Slide 3"
-        const deckFilename = slides[0]?.topic?.replace(/ – Slide \d+$/, "").trim() ?? deckSlug;
+        // Use original filename stored at ingest time — never rely on LLM-generated topic
+        const deckFilename = slides[0]?.deck_filename ?? deckSlug;
         console.error(`[reduce] → ${deckFilename} (${slides.length} slides)`);
 
         const narrative = await reduceSingleDeck(deckFilename, slides);

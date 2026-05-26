@@ -273,7 +273,8 @@ function imageSlideToThread(codename: string, deckName: string, deckDate: string
     last_delivered: deckDate,
     is_external: true,
     posts: [post],
-    image_path: slide.pngPath,  // absolute path — no guessing at map time
+    image_path: slide.pngPath,       // absolute path — no guessing at map time
+    deck_filename: deckName,           // original .pptx filename — no reconstruction needed
   };
 }
 

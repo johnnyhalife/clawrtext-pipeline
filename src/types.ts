@@ -17,6 +17,7 @@ export interface Thread {
   is_external: boolean;     // true if any post has an external sender
   posts: Post[];
   image_path?: string;      // absolute path to PNG — set by ingest-decks for slide threads
+  deck_filename?: string;    // original .pptx filename — set by ingest-decks for slide threads
 }
 
 // ── Extracted (map output) ────────────────────────────────────────────────────
@@ -32,7 +33,9 @@ export const ExtractedThreadSchema = z.object({
   has_external: z.boolean(),
 });
 
-export type ExtractedThread = z.infer<typeof ExtractedThreadSchema>;
+export type ExtractedThread = z.infer<typeof ExtractedThreadSchema> & {
+  deck_filename?: string;  // passthrough from Thread — not extracted by LLM
+};
 
 // ── Embedded (embed output — stored in Qdrant payload) ────────────────────────
 

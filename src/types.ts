@@ -10,12 +10,13 @@ export interface Post {
 }
 
 export interface Thread {
-  uid: string;              // "email:<threadId>" — canonical citation key
+  uid: string;              // "email:<threadId>" or "deck:<codename>:<slug>:slide<N>"
   codename: string;
   topic: string;
   last_delivered: string;   // ISO 8601
   is_external: boolean;     // true if any post has an external sender
   posts: Post[];
+  image_path?: string;      // absolute path to PNG — set by ingest-decks for slide threads
 }
 
 // ── Extracted (map output) ────────────────────────────────────────────────────

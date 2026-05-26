@@ -6,7 +6,7 @@ import pLimit from "p-limit";
 
 import {
   OLLAMA_URL,
-  CLAWRTEX_ROOT,
+  // CLAWRTEX_ROOT no longer needed in map-decks (path comes from thread.image_path)
   MODEL_MAP_DECKS,
   MAP_CONCURRENCY,
   statePath,
@@ -38,22 +38,16 @@ function loadCache(codename: string): Map<string, ExtractedThread> {
 
 // ── Image path from UID ──────────────────────────────────────────
 
-function deriveImagePath(thread: Thread): string | null {
-  // UID format: deck:<codename>:<slugDeck>:slide<N>
-  const codename = thread.codename;
-  const tmpDir = resolve(CLAWRTEX_ROOT, "state", ".decks-tmp", codename);
-  const slugDeck = thread.uid.split(":")[2]; // middle segment after "deck:" and codename
-
-  const slideIdxMatch = thread.uid.match(/slide(\d+)$/);
-  if (!slideIdxMatch) return null;
-  const n = parseInt(slideIdxMatch[1], 10);
-
-  // Try both zero-padded (slide-01.png) and unpadded (slide-1.png)
-  const candidates = [
-    resolve(tmpDir, `${slugDeck}-slides`, `slide-${n}.png`),
-    resolve(tmpDir, `${slugDeck}-slides`, `slide-${String(n).padStart(2, "0")}.png`),
-  ];
-  return candidates.find(p => existsSync(p)) ?? null;
+function resolveImagePath(thread: Thread): string | null {
+  // Prefer the absolute path recorded by ingest-decks
+  if (thread.image_path) {
+    if (existsSync(thread.image_path)) return thread.image_path;
+    console.error(`[map-decks] ERROR image_path recorded but file missing: ${thread.image_path}`);
+    return null;
+  }
+  // Fallback: threads ingested before image_path was added — fail loudly
+  console.error(`[map-decks] ERROR no image_path on thread ${thread.uid} — re-run ingest to populate it`);
+  return null;
 }
 
 // ── Prompt ─────────────────────────────────────────────────────────
@@ -74,7 +68,7 @@ async function extractSlide(thread: Thread): Promise<ExtractedThread> {
   const MAX_RETRIES = 2;
   let lastError: Error | null = null;
 
-  const imagePath = deriveImagePath(thread);
+  const imagePath = resolveImagePath(thread);
   if (!imagePath) {
     console.error(`[map-decks] WARN no image found for ${thread.uid} — slide will be text-only`);
   }

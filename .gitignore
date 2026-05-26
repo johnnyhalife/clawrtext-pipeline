@@ -2,3 +2,9 @@ node_modules/
 dist/
 .env
 credentials.json
+
+# Deck artifacts — too large for repo
+state/.decks-tmp/
+state/**/*.png
+state/**/*.pdf
+state/**/*.pptx

@@ -7,6 +7,32 @@ import { pipeline } from "stream/promises";
 import pLimit from "p-limit";
 
 import { CLAWRTEX_ROOT, credentials, statePath } from "./config.js";
+import { resolve as resolvePath } from "path";
+
+// ── Registry ──────────────────────────────────────────────────────────────────
+
+interface RegistryEntry {
+  codename: string;
+  sharepoint?: { site: string; folder: string };
+}
+
+function lookupSharePoint(codename: string): { site: string; folder: string } {
+  const p = resolvePath(CLAWRTEX_ROOT, "registry.json");
+  let entries: RegistryEntry[] = [];
+  try {
+    entries = JSON.parse(readFileSync(p, "utf-8")) as RegistryEntry[];
+  } catch {
+    throw new Error(`registry.json not found at ${p}`);
+  }
+  const entry = entries.find(e => e.codename === codename);
+  if (!entry?.sharepoint) {
+    throw new Error(
+      `No SharePoint config for '${codename}' in ${p}.\n` +
+      `Add: { "codename": "${codename}", "sharepoint": { "site": "<site>", "folder": "<folder>" } }`
+    );
+  }
+  return entry.sharepoint;
+}
 import type { Thread, Post, DeckState, DeckFile } from "./types.js";
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -274,10 +300,9 @@ function fileKey(f: DeckFile): string {
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export async function ingestDecks(
-  codename: string,
-  site: string,
-  folder: string
+  codename: string
 ): Promise<Thread[]> {
+  const { site, folder } = lookupSharePoint(codename);
   console.error(`[ingest-decks] codename=${codename} site=${site} folder=${folder}`);
 
   const token = await getAccessToken();

@@ -1,11 +1,28 @@
-List the core technologies used in this software project. Read the summaries and return ONLY a comma-separated list of up to 10 technology names.
+You are updating the compiled truth for project {{codename}}.
 
-Rules:
-- Maximum 10 items, no more
-- One word or short phrase per item (e.g. "AKS", "Temporal", "NATS", "Go", "CDKTF")
-- Only technologies central to what was built — no monitoring subtypes, no variations
-- No repetition, no explanation, no punctuation other than commas
-- If nothing is clear, return: (none)
+{{#if existingNarrative}}
+Here is the current compiled truth narrative:
 
-Summaries:
-{{context}}
+{{existingNarrative}}
+
+Update it by incorporating the new evidence below. Preserve accurate existing content. Replace or extend where the new evidence adds specificity. The result should read as a single coherent narrative, not a chronological list of what happened each sprint.
+{{else}}
+There is no existing narrative. Write a v0 based solely on the evidence below.
+{{/if}}
+
+New evidence (recent deck summaries not yet incorporated):
+{{newEntries}}
+
+Write 3–5 paragraphs covering:
+1. What the engagement was about and the core technical problem
+2. The infrastructure and platform work delivered
+3. Key architectural decisions and migrations completed
+4. Any notable research or platform capabilities built
+
+RULES:
+- Only use information present in the evidence. Do not invent.
+- Name specific technologies, components, and systems — no genericizing.
+- Do not mention sprint numbers, iteration labels, or dates.
+- No marketing language. Factual, professional, third person.
+- Do not mention that sources are slides or decks.
+- Output ONLY the narrative — no headings, no preamble, no "here is the updated narrative".

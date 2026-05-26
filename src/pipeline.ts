@@ -1,16 +1,11 @@
-import { readFileSync, existsSync } from "fs";
-import { resolve } from "path";
-import { ingest } from "./ingest.js";
-import { map } from "./map.js";
 import { ingestDecks } from "./ingest-decks.js";
 import { mapDecks } from "./map-decks.js";
 import { embed } from "./embed.js";
-import { cluster } from "./cluster.js";
-import { reduce, saveNarratives, loadNarratives } from "./reduce.js";
-import { synthesize } from "./synthesize.js";
-import { clean } from "./clean.js";
-import { CLAWRTEX_ROOT, statePath } from "./config.js";
-import type { ExtractedThread, RegistryEntry } from "./types.js";
+import { reduceDeck } from "./reduce.js";
+import { updateCompiledTruth } from "./synthesize.js";
+import { statePath } from "./config.js";
+import { existsSync, mkdirSync } from "fs";
+import { dirname } from "path";
 
 // ── Args ──────────────────────────────────────────────────────────────────────
 
@@ -19,206 +14,78 @@ function arg(name: string): string | undefined {
   return idx !== -1 ? process.argv[idx + 1] : undefined;
 }
 
-function hasFlag(name: string): boolean {
-  return process.argv.includes(`--${name}`);
-}
-
-// Support CSV phases: --phase reduce,synthesize,clean
 const phaseRaw = arg("phase") ?? "all";
-const phases = phaseRaw.split(",").map(p => p.trim()).filter(Boolean);
+const phases   = phaseRaw.split(",").map(p => p.trim()).filter(Boolean);
 const codename = arg("codename");
-const dl = arg("dl");
-const source = arg("source") ?? "dl"; // "dl" | "decks"
-
-// ── Registry lookup ───────────────────────────────────────────────────────────
-
-function loadRegistry(): RegistryEntry[] {
-  const p = resolve(CLAWRTEX_ROOT, "registry.json");
-  if (!existsSync(p)) return [];
-  return JSON.parse(readFileSync(p, "utf-8")) as RegistryEntry[];
-}
-
-function lookupEntry(name: string): RegistryEntry | undefined {
-  return loadRegistry().find(e => e.codename === name);
-}
-
-// ── Usage ─────────────────────────────────────────────────────────────────────
 
 if (!codename) {
   console.error("Usage:");
-  console.error("  DL source (default):");
-  console.error("    npx tsx src/pipeline.ts --codename <name> --dl <address> [--phase all|ingest|map|embed|reduce|synthesize|clean|refresh]");
+  console.error("  npx tsx src/pipeline.ts --codename <name> [--phase all|ingest|map|embed|reduce|compiled-truth]");
   console.error("");
-  console.error("  Deck source:");
-  console.error("    npx tsx src/pipeline.ts --codename <name> --source decks [--phase all|ingest|map|embed|reduce|synthesize|clean|refresh]");
-  console.error("    (sharepoint site+folder read from ~/clawrtex/registry.json)");
+  console.error("  Phases:");
+  console.error("    ingest         — download new decks from SharePoint (incremental)");
+  console.error("    map            — extract slide content via nemotron3:33b vision");
+  console.error("    embed          — embed slide chunks into Qdrant");
+  console.error("    reduce         — per-deck summarization → .entries/{codename}.jsonl");
+  console.error("    compiled-truth — update compiled truth from new entries");
+  console.error("    all            — run all phases in order (default)");
   console.error("");
   console.error("  Examples:");
-  console.error("    npx tsx src/pipeline.ts --codename tartan --source decks");
-  console.error("    npx tsx src/pipeline.ts --codename rhyzono --source decks --phase ingest");
-  console.error("    npx tsx src/pipeline.ts --codename tartan --dl tartan@southworks.com");
+  console.error("    npx tsx src/pipeline.ts --codename tartan");
+  console.error("    npx tsx src/pipeline.ts --codename tartan --phase map");
+  console.error("    npx tsx src/pipeline.ts --codename tartan --phase reduce,compiled-truth");
   process.exit(1);
 }
 
-// ── Resolve SharePoint config for deck runs ───────────────────────────────────
+// ── Ensure state dirs exist ───────────────────────────────────────────────────
 
-function requireSharePoint(name: string): { site: string; folder: string } {
-  const entry = lookupEntry(name);
-  if (!entry?.sharepoint) {
-    throw new Error(
-      `No SharePoint config for '${name}' in ~/clawrtex/registry.json.\n` +
-      `Add: { "codename": "${name}", "sharepoint": { "site": "<site>", "folder": "<folder>" } }`
-    );
-  }
-  return entry.sharepoint;
+for (const suffix of ["extracted.jsonl", "entries.jsonl"]) {
+  const p = statePath(codename, suffix);
+  const dir = dirname(p);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 }
-// ── Phase runners ─────────────────────────────────────────────────────────────
 
-async function runDecksPhase(phase: string, codename: string): Promise<void> {
-  const sp = requireSharePoint(codename);
+// ── Phase runner ──────────────────────────────────────────────────────────────
 
+async function runPhase(phase: string): Promise<void> {
   switch (phase) {
     case "ingest":
-      await ingestDecks(codename, sp.site, sp.folder);
+      await ingestDecks(codename!);
       break;
+
     case "map":
-      await mapDecks(codename);
+      await mapDecks(codename!);
       break;
+
     case "embed":
-      await embed(codename);
+      await embed(codename!);
       break;
-    case "cluster":
-      await cluster(codename);
+
+    case "reduce":
+      await reduceDeck(codename!);
       break;
-    case "reduce": {
-      const clusters = await cluster(codename);
-      const narratives = await reduce(clusters);
-      saveNarratives(codename, narratives);
+
+    case "compiled-truth":
+      await updateCompiledTruth(codename!);
       break;
-    }
-    case "synthesize": {
-      const extractedPath = statePath(codename, "extracted.jsonl");
-      if (!existsSync(extractedPath)) { console.error("Run map phase first"); process.exit(1); }
-      const threads: ExtractedThread[] = readFileSync(extractedPath, "utf-8")
-        .split("\n").filter(Boolean).map(l => JSON.parse(l) as ExtractedThread);
-      let narratives = loadNarratives(codename);
-      if (narratives) {
-        console.error(`[pipeline] loaded ${narratives.length} cached narratives`);
-      } else {
-        const clusters = await cluster(codename);
-        narratives = await reduce(clusters);
-        saveNarratives(codename, narratives);
-      }
-      await synthesize(codename, narratives, threads, null);
+
+    case "all":
+      await ingestDecks(codename!);
+      await mapDecks(codename!);
+      await embed(codename!);
+      await reduceDeck(codename!);
+      await updateCompiledTruth(codename!);
       break;
-    }
-    case "clean":
-      await clean(codename);
-      break;
-    case "refresh": {
-      const extracted = await mapDecks(codename);
-      await embed(codename);
-      const clusters = await cluster(codename);
-      const narratives = await reduce(clusters);
-      saveNarratives(codename, narratives);
-      await synthesize(codename, narratives, extracted, null);
-      await clean(codename);
-      break;
-    }
-    case "all": {
-      const threads = await ingestDecks(codename, sp.site, sp.folder);
-      const extracted = await mapDecks(codename);
-      await embed(codename);
-      const clusters = await cluster(codename);
-      const narratives = await reduce(clusters);
-      saveNarratives(codename, narratives);
-      await synthesize(codename, narratives, extracted, null);
-      await clean(codename);
-      break;
-    }
+
     default:
       console.error(`Unknown phase: ${phase}`);
       process.exit(1);
   }
 }
 
-async function runDlPhase(phase: string, codename: string, dl: string | undefined): Promise<void> {
-  switch (phase) {
-    case "ingest":
-      if (!dl) { console.error("--dl required for ingest phase"); process.exit(1); }
-      await ingest(codename, dl!);
-      break;
-    case "map":
-      await map(codename);
-      break;
-    case "embed":
-      await embed(codename);
-      break;
-    case "cluster":
-      await cluster(codename);
-      break;
-    case "reduce": {
-      const clusters = await cluster(codename);
-      const narratives = await reduce(clusters);
-      saveNarratives(codename, narratives);
-      break;
-    }
-    case "synthesize": {
-      if (!dl) { console.error("--dl required for synthesize phase"); process.exit(1); }
-      const extractedPath = statePath(codename, "extracted.jsonl");
-      if (!existsSync(extractedPath)) { console.error("Run map phase first"); process.exit(1); }
-      const threads: ExtractedThread[] = readFileSync(extractedPath, "utf-8")
-        .split("\n").filter(Boolean).map(l => JSON.parse(l) as ExtractedThread);
-      let narratives = loadNarratives(codename);
-      if (narratives) {
-        console.error(`[pipeline] loaded ${narratives.length} cached narratives — skipping reduce`);
-      } else {
-        const clusters = await cluster(codename);
-        narratives = await reduce(clusters);
-        saveNarratives(codename, narratives);
-      }
-      await synthesize(codename, narratives, threads, dl!);
-      break;
-    }
-    case "clean":
-      await clean(codename);
-      break;
-    case "refresh": {
-      if (!dl) { console.error("--dl required for refresh phase"); process.exit(1); }
-      const extracted = await map(codename);
-      await embed(codename);
-      const clusters = await cluster(codename);
-      const narratives = await reduce(clusters);
-      saveNarratives(codename, narratives);
-      await synthesize(codename, narratives, extracted, dl!);
-      await clean(codename);
-      break;
-    }
-    case "all": {
-      if (!dl) { console.error("--dl required for all phases"); process.exit(1); }
-      const threads = await ingest(codename, dl!);
-      const extracted = await map(codename);
-      await embed(codename);
-      const clusters = await cluster(codename);
-      const narratives = await reduce(clusters);
-      saveNarratives(codename, narratives);
-      await synthesize(codename, narratives, extracted, dl!);
-      await clean(codename);
-      break;
-    }
-    default:
-      console.error(`Unknown phase: ${phase}`);
-      process.exit(1);
-  }
-}
-
-// ── Dispatch (supports CSV phases) ───────────────────────────────────────────
+// ── Dispatch ──────────────────────────────────────────────────────────────────
 
 for (const phase of phases) {
   console.error(`[pipeline] ▶ phase: ${phase}`);
-  if (source === "decks") {
-    await runDecksPhase(phase, codename);
-  } else {
-    await runDlPhase(phase, codename, dl);
-  }
+  await runPhase(phase);
 }

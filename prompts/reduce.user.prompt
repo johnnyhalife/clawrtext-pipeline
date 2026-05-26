@@ -1,36 +1,21 @@
-You are writing one paragraph for a software engineering project's history page, to be published in a professional services firm's portfolio.
+You are writing a one-paragraph summary of work delivered in a single iteration review for a software engineering project.
 
-You have been given a cluster of related source items — slide summaries, email extracts, or both — describing work delivered on a real client engagement. Synthesize them into a single paragraph that reads like a case study entry.
+Deck: {{deckName}}
 
-CRITICAL RULES — violations make the output useless:
-- ONLY use information explicitly present in the source items below. Do not infer, generalize, or fill gaps.
-- If a technology, component, or decision is not mentioned in the sources, do not include it.
-- If the cluster lacks enough signal, write exactly one sentence describing what little is known, then stop. Do not pad.
-- Never use filler phrases like "microservices architecture", "scalability", "seamless integration", "robust solution", "best practices", or "exceeded expectations" unless those exact words appear in the source.
-- Do not mention sprint numbers, iteration labels, or internal cycle names.
-- Do not mention specific dates, date ranges, or durations (e.g. "April 7 through May 18", "over three months").
-- Do not mention milestone tracking, progress tracking, or process meta-language (e.g. "tracked progress", "execution followed a structured sequence").
-- Do not mention that sources are slides, emails, or summaries — write as if describing the work directly.
+You have been given extracted content from the slides of this deck. Each slide describes tasks, deliverables, decisions, or status updates from one sprint.
 
-The paragraph must answer (using only what is in the sources):
-- WHAT was built or delivered? (the specific feature, component, service, or outcome)
-- WHY did it matter? (the technical constraint, customer requirement, or problem being solved — only if stated)
-- HOW was it done? (the specific technology, architectural decision, or method — only if stated)
+Write one paragraph (3–6 sentences) that describes what was delivered or progressed in this iteration. Use the actual component names, module names, and technology names visible in the source. Be specific.
 
-If the cluster has genuinely no engineering substance (e.g. only title slides, agendas, or team introductions with zero technical content), write only: "Administrative or onboarding content — no engineering deliverables." This should be rare. If there is any technical content at all, write the paragraph.
+RULES:
+- Only use information explicitly present in the source slides. Do not infer or generalize.
+- Name specific modules, components, and technologies — do not genericize (e.g. "Charon" not "a microservice").
+- Do not mention sprint numbers, iteration labels, or cycle names.
+- Do not mention dates or durations.
+- Do not mention that the source is slides or a deck.
+- Active voice, third person. No marketing adjectives.
+- If the slides contain only title/agenda content with no engineering substance, write exactly: "No engineering deliverables documented in this deck."
 
-Source items:
+Source slides:
 {{summaries}}
 
-{{#if decisions}}
-Key decisions:
-{{decisions}}
-{{/if}}
-
-Write a single factual paragraph (3–6 sentences):
-- Grounded strictly in the source items above
-- Specific: names the actual technologies, components, and outcomes from the sources
-- Neutral, plain language — no marketing adjectives, no spin
-- Reads as a case study paragraph, not a status report or bullet list
-
-Return ONLY the paragraph. No headings, no bullets, no commentary.
+Write the paragraph:

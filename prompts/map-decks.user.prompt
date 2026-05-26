@@ -1,32 +1,32 @@
-You are extracting structured metadata from a single slide of a software project iteration review deck.
+You are extracting engineering content from a single slide of a software project iteration review deck.
 
 Deck: {{deckName}}
 Slide: {{slideTopic}}
 Date: {{slideDate}}
 
-You are reading a slide from a customer-facing iteration review. These decks show what was built and delivered each sprint.
+STEP 1 — READ THE SLIDE
+Read every word visible on the slide. Task names, status indicators (done / in progress / code review / ready for review), technology names, component names, module names, PR/MR numbers, bullet points, table cells, code snippets, diagram labels, annotations. Everything.
 
-For this slide, answer:
-1. WHAT was built, delivered, or demonstrated? (the feature, component, milestone, or artifact shown on this slide)
-2. WHY does it matter? (the problem solved, the goal achieved, the customer outcome — only if stated on the slide)
-3. HOW was it implemented or approached? (architecture, technology, method — only if stated on the slide)
+STEP 2 — EXTRACT STRUCTURE
+From what you read, extract:
+- topic: a concise label for this slide's content (max 10 words)
+- summary: 2–4 sentences describing what is shown — tasks, deliverables, decisions, technologies. Use the actual names and terms visible on the slide. If the slide is a task list, describe what the tasks are about. If it is a status table, describe what modules/projects are in what state.
+- decisions: specific design choices, architectural decisions, or resolved questions visible on the slide
+- action_items: concrete next steps or open questions stated on the slide
 
-If the slide is a title slide, agenda, table of contents, or team introduction with no engineering substance — return a one-sentence summary and empty arrays.
+CRITICAL RULES:
+- If you can read ANY task, module name, technology, or status item on the slide — it is NOT a title slide. Extract the content.
+- Only return an empty summary if the slide is literally blank or contains only a project logo and date with zero other text.
+- Never write "no engineering content" for a slide that has visible task lists, status tables, or technology names.
+- Do not infer rationale. Only state what is explicitly visible.
+- topic must reflect the actual content, not just repeat the deck name.
 
 Return ONLY valid JSON (no markdown, no explanation) matching this exact schema:
 {
   "topic": "<concise topic label, max 10 words>",
-  "summary": "<2-4 sentences answering what/why/how — factual, no spin, only what the slide states>",
+  "summary": "<2-4 sentences describing what is visible on the slide>",
   "decisions": ["<specific decision or design choice visible on this slide>", ...],
-  "action_items": ["<concrete next step or commitment stated on this slide>", ...],
+  "action_items": ["<concrete next step or open question stated on this slide>", ...],
   "sentiment": "<positive|neutral|negative|mixed>",
   "has_external": true
 }
-
-Rules:
-- has_external is always true for deck slides (they are customer-facing by definition)
-- summary must be factual — only what the slide explicitly states, no inferred rationale
-- do NOT add generic phrases like "to meet client requirements", "to ensure scalability" — only state what is on the slide
-- decisions and action_items must be directly visible on the slide — do not invent or generalize
-- if the slide is a cover/title/agenda slide: one-sentence summary, empty arrays
-- topic must be specific to this slide's content, not just the deck name

@@ -8,8 +8,8 @@ const PIPELINE_ROOT = resolve(__dirname, "..");
 
 // ── Env ───────────────────────────────────────────────────────────────────────
 
-export const QDRANT_URL = process.env.QDRANT_URL ?? "https://qdrant.swrks.sh";
-export const OLLAMA_URL = process.env.OLLAMA_URL ?? "https://spark.swrks.sh/ollama";
+export const QDRANT_URL    = process.env.QDRANT_URL    ?? "https://qdrant.swrks.sh";
+export const OLLAMA_URL    = process.env.OLLAMA_URL    ?? "https://spark.swrks.sh/ollama";
 export const CLAWRTEX_ROOT = process.env.CLAWRTEX_ROOT ?? resolve(process.env.HOME ?? "/tmp", "clawrtex");
 
 // ── Credentials ───────────────────────────────────────────────────────────────
@@ -28,7 +28,7 @@ function loadCredentials(): Credentials {
   try {
     return JSON.parse(readFileSync(credPath, "utf-8")) as Credentials;
   } catch {
-    throw new Error(`credentials.json not found at ${credPath} — copy it from Clawrence skill`);
+    throw new Error(`credentials.json not found at ${credPath}`);
   }
 }
 
@@ -36,7 +36,6 @@ export const credentials = loadCredentials();
 
 // ── Models ────────────────────────────────────────────────────────────────────
 
-// Load models.yaml — priority: env vars > models.yaml > hardcoded defaults
 interface ModelsYaml { [stage: string]: string; }
 
 function loadModelsYaml(): ModelsYaml {
@@ -56,19 +55,16 @@ function modelFor(stage: string, envVar: string, fallback: string): string {
   return process.env[envVar] ?? modelsYaml[stage] ?? fallback;
 }
 
-export const MODEL_MAP        = modelFor("map",        "MODEL_MAP",        "phi4:14b");
-export const MODEL_MAP_DECKS  = modelFor("map-decks",  "MODEL_MAP_DECKS",  "nemotron3:33b");
-export const MODEL_EMBED      = modelFor("embed",       "MODEL_EMBED",      "qwen3-embedding:8b");
-export const MODEL_REDUCE     = modelFor("reduce",      "MODEL_REDUCE",     "qwen3.6:35b");
-export const MODEL_SYNTHESIZE = modelFor("synthesize",  "MODEL_SYNTHESIZE", "qwen3.6:35b");
+export const MODEL_MAP_DECKS      = modelFor("map-decks",      "MODEL_MAP_DECKS",      "nemotron3:33b");
+export const MODEL_EMBED          = modelFor("embed",           "MODEL_EMBED",           "qwen3-embedding:8b");
+export const MODEL_REDUCE         = modelFor("reduce",          "MODEL_REDUCE",          "qwen3.6:35b");
+export const MODEL_COMPILED_TRUTH = modelFor("compiled-truth",  "MODEL_COMPILED_TRUTH",  "qwen3.6:35b");
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
-// Suffix → subdirectory mapping
 const STATE_DIRS: Record<string, string> = {
-  "threads.jsonl":    ".threads",
-  "extracted.jsonl":  ".extraction",
-  "narratives.jsonl": ".narratives",
+  "extracted.jsonl": ".extraction",
+  "entries.jsonl":   ".entries",
 };
 
 export function statePath(codename: string, suffix: string): string {
@@ -76,7 +72,6 @@ export function statePath(codename: string, suffix: string): string {
   if (subdir) {
     return resolve(CLAWRTEX_ROOT, "state", subdir, `${codename}.jsonl`);
   }
-  // Fallback: project root file (e.g. nerine.json)
   return resolve(CLAWRTEX_ROOT, "state", `${codename}-${suffix}`);
 }
 
@@ -86,7 +81,6 @@ export function projectPath(codename: string): string {
 
 // ── Concurrency ───────────────────────────────────────────────────────────────
 
-export const GRAPH_CONCURRENCY = 16;   // parallel post fetches
-export const MAP_CONCURRENCY = 4;      // parallel phi4 calls (Spark GPU limit)
-export const EMBED_CONCURRENCY = 8;    // parallel embedding calls
+export const MAP_CONCURRENCY    = Number(process.env.MAP_CONCURRENCY    ?? 4);
+export const EMBED_CONCURRENCY  = Number(process.env.EMBED_CONCURRENCY  ?? 8);
 export const REDUCE_CONCURRENCY = Number(process.env.REDUCE_CONCURRENCY ?? 4);

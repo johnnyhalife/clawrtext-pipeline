@@ -5,17 +5,19 @@ import { dirname } from "path";
 import { OLLAMA_URL, MODEL_REDUCE, REDUCE_CONCURRENCY, statePath } from "./config.js";
 import type { ExtractedThread } from "./types.js";
 import { renderPrompt } from "./prompts.js";
+import { appendEntryToPage } from "./synthesize.js";
 
 const ollama = new Ollama({ host: OLLAMA_URL });
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface DeckEntry {
-  deck_name: string;
+  deck_name: string;       // slug derived from filename
+  deck_filename: string;   // original filename e.g. "2024-12-17 - Sprint 1 Review.pptx"
   deck_date: string;       // YYYY-MM-DD derived from deck filename
   slide_count: number;
   narrative: string;
-  reduced_at: string;
+  reduced_at: string;      // ISO 8601 — when this entry was written
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -102,21 +104,24 @@ export async function reduceDecks(
   await Promise.all(
     pending.map(([deckSlug, slides]) =>
       limit(async () => {
-        const deckName = deckSlug.replace(/-/g, " ").replace(/(\d{4}) (\d{2}) (\d{2})/, "$1-$2-$3");
-        console.error(`[reduce] → ${deckName} (${slides.length} slides)`);
+        // Recover original filename from topic: "2024-12-17 - Sprint 1 Review.pptx – Slide 3"
+        const deckFilename = slides[0]?.topic?.replace(/ – Slide \d+$/, "").trim() ?? deckSlug;
+        console.error(`[reduce] → ${deckFilename} (${slides.length} slides)`);
 
-        const narrative = await reduceSingleDeck(deckName, slides);
+        const narrative = await reduceSingleDeck(deckFilename, slides);
 
         const entry: DeckEntry = {
           deck_name: deckSlug,
+          deck_filename: deckFilename,
           deck_date: deckDateFromName(deckSlug),
           slide_count: slides.length,
           narrative,
           reduced_at: new Date().toISOString(),
         };
 
-        appendEntry(codename, entry);  // written immediately on completion
-        console.error(`[reduce] ✓ ${deckName}`);
+        appendEntry(codename, entry);       // persist to .entries JSONL cache
+        appendEntryToPage(codename, entry);   // append to project .md immediately
+        console.error(`[reduce] ✓ ${deckFilename}`);
       })
     )
   );

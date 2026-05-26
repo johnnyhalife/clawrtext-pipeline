@@ -1,5 +1,5 @@
 import { Ollama } from "ollama";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";  // readFileSync used for existing project page
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { dirname } from "path";
 import { OLLAMA_URL, MODEL_COMPILED_TRUTH, statePath, projectPath } from "./config.js";
 import { renderPrompt } from "./prompts.js";
@@ -15,57 +15,94 @@ function loadEntries(codename: string): DeckEntry[] {
   return readFileSync(p, "utf-8")
     .split("\n")
     .filter(Boolean)
-    .map(l => JSON.parse(l) as DeckEntry);
+    .map(l => JSON.parse(l) as DeckEntry)
+    .sort((a, b) => a.deck_date.localeCompare(b.deck_date));
 }
 
-function parseExistingNarrative(md: string): { narrative: string; lastEntry: string | null } {
-  // Extract narrative section between ## Narrative and ## Sources
-  const narrativeMatch = md.match(/## Narrative\n([\s\S]*?)(?=\n## Sources|\n## |$)/);
-  const narrative = narrativeMatch ? narrativeMatch[1].trim() : "";
-
-  // Extract last-entry marker from sources section
-  const lastEntryMatch = md.match(/- last-entry: (.+)/);
-  const lastEntry = lastEntryMatch ? lastEntryMatch[1].trim() : null;
-
-  return { narrative, lastEntry };
+// Format: "### *Dec 17, 2024* - Extracted from `2024-12-17 - Sprint 1 Review.pptx` - (6 Slides)"
+function formatEntryHeader(entry: DeckEntry): string {
+  const d = new Date(entry.reduced_at);
+  const humanDate = d.toLocaleDateString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+    hour: "2-digit", minute: "2-digit", timeZone: "America/Argentina/Buenos_Aires",
+  });
+  return `### *${humanDate} GMT-3* - Extracted from \`${entry.deck_filename}\` - (${entry.slide_count} Slides)`;
 }
 
-function renderProjectPage(codename: string, narrative: string, entries: DeckEntry[], existingMd: string): string {
-  // Preserve existing identity fields if page exists
-  let identity = [
+function parseIdentityBlock(md: string): string {
+  const m = md.match(/## Identity\n([\s\S]*?)(?=\n##|\n---|$)/);
+  return m ? m[1].trim() : [
     "- **Customer:** <!-- reconcile -->",
     "- **Period:** <!-- reconcile -->",
     "- **Engagement lead:** <!-- reconcile -->",
     "- **Customer representative:** <!-- reconcile -->",
     "- **Stack:** <!-- reconcile -->",
   ].join("\n");
+}
 
-  if (existingMd) {
-    const identityMatch = existingMd.match(/## Identity\n([\s\S]*?)(?=\n## Narrative|\n## |$)/);
-    if (identityMatch) identity = identityMatch[1].trim();
-  }
+function parseCompiledTruth(md: string): string {
+  const m = md.match(/## Compiled Truth\n([\s\S]*?)(?=\n---|$)/);
+  return m ? m[1].trim() : "";
+}
 
-  const lastEntry = entries.length > 0 ? entries[entries.length - 1].deck_name : "none";
-  const slideCount = entries.reduce((s, e) => s + e.slide_count, 0);
-  const deckCount = entries.length;
+// ── Project page renderer ─────────────────────────────────────────────────────
+
+function renderPage(codename: string, identity: string, compiledTruth: string, entries: DeckEntry[]): string {
+  const entryBlocks = entries
+    .map(e => `${formatEntryHeader(e)}\n${e.narrative}`)
+    .join("\n\n");
 
   return `# ${codename}
 ## Identity
 ${identity}
 
-## Narrative
-${narrative}
+## Compiled Truth
+${compiledTruth}
 
-## Sources
-- slides: ${slideCount} (${deckCount} decks)
-- source: iteration-review-decks
-- last-entry: ${lastEntry}
-- last crawl: ${new Date().toISOString().slice(0, 10)}
-- generated: ${new Date().toISOString().slice(0, 10)}
+---
+
+${entryBlocks}
 `;
 }
 
-// ── Main export ───────────────────────────────────────────────────────────────
+// ── Append a single entry to the project page (called by reduce as each deck finishes) ──
+
+export function appendEntryToPage(codename: string, entry: DeckEntry): void {
+  const projPath = projectPath(codename);
+  mkdirSync(dirname(projPath), { recursive: true });
+
+  if (!existsSync(projPath)) {
+    // First entry — create the file with identity stub and separator
+    const page = `# ${codename}
+## Identity
+- **Customer:** <!-- reconcile -->
+- **Period:** <!-- reconcile -->
+- **Engagement lead:** <!-- reconcile -->
+- **Customer representative:** <!-- reconcile -->
+- **Stack:** <!-- reconcile -->
+
+## Compiled Truth
+<!-- will be generated after all decks reduce -->
+
+---
+
+${formatEntryHeader(entry)}
+${entry.narrative}
+`;
+    writeFileSync(projPath, page, "utf-8");
+    console.error(`[project-page] created ${projPath}`);
+    return;
+  }
+
+  // Append below the --- separator
+  const existing = readFileSync(projPath, "utf-8");
+  const header = formatEntryHeader(entry);
+  const block = `\n${header}\n${entry.narrative}\n`;
+  writeFileSync(projPath, existing + block, "utf-8");
+  console.error(`[project-page] appended entry for ${entry.deck_filename}`);
+}
+
+// ── Regenerate compiled truth from all entries (called after all decks reduce) ──
 
 export async function updateCompiledTruth(codename: string): Promise<void> {
   const entries = loadEntries(codename);
@@ -76,51 +113,34 @@ export async function updateCompiledTruth(codename: string): Promise<void> {
 
   const projPath = projectPath(codename);
   const existingMd = existsSync(projPath) ? readFileSync(projPath, "utf-8") : "";
+  const identity = parseIdentityBlock(existingMd);
 
-  // Determine which entries are new since last compiled-truth run
-  const { narrative: existingNarrative, lastEntry } = parseExistingNarrative(existingMd);
+  console.error(`[compiled-truth] synthesizing from ${entries.length} deck entries via ${MODEL_COMPILED_TRUTH}`);
 
-  let newEntries: DeckEntry[];
-  if (lastEntry) {
-    const lastIdx = entries.findIndex(e => e.deck_name === lastEntry);
-    newEntries = lastIdx >= 0 ? entries.slice(lastIdx + 1) : entries;
-  } else {
-    newEntries = entries;
-  }
-
-  if (newEntries.length === 0) {
-    console.error(`[compiled-truth] compiled truth is up to date — no new entries`);
-    return;
-  }
-
-  console.error(`[compiled-truth] ${newEntries.length} new entries to incorporate via ${MODEL_COMPILED_TRUTH}`);
-
-  const newEntriesText = newEntries
+  const entriesText = entries
     .map(e => `[${e.deck_date}] ${e.narrative}`)
     .join("\n\n");
 
-  const prompt = renderPrompt("synthesize", "user", {
-    codename,
-    existingNarrative: existingNarrative || null,
-    newEntries: newEntriesText,
-  });
-
   const systemPrompt = renderPrompt("synthesize", "system", {});
+  const userPrompt = renderPrompt("synthesize", "user", {
+    codename,
+    existingNarrative: parseCompiledTruth(existingMd) || null,
+    newEntries: entriesText,
+  });
 
   const response = await ollama.chat({
     model: MODEL_COMPILED_TRUTH,
     messages: [
       { role: "system", content: systemPrompt },
-      { role: "user", content: prompt },
+      { role: "user", content: userPrompt },
     ],
     options: { temperature: 0.2 },
   });
 
-  const narrative = response.message.content.trim();
+  const compiledTruth = response.message.content.trim();
+  const page = renderPage(codename, identity, compiledTruth, entries);
 
   mkdirSync(dirname(projPath), { recursive: true });
-  const page = renderProjectPage(codename, narrative, entries, existingMd);
   writeFileSync(projPath, page, "utf-8");
-
   console.error(`[compiled-truth] ✓ wrote ${projPath}`);
 }

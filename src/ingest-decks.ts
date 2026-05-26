@@ -301,7 +301,8 @@ function fileKey(f: DeckFile): string {
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export async function ingestDecks(
-  codename: string
+  codename: string,
+  deckFilter?: string  // exact deck filename e.g. "2024-12-17 - Sprint 1 Review.pptx"
 ): Promise<Thread[]> {
   const { site, folder } = lookupSharePoint(codename);
   console.error(`[ingest-decks] codename=${codename} site=${site} folder=${folder}`);
@@ -312,6 +313,19 @@ export async function ingestDecks(
 
   if (files.length === 0) {
     throw new Error(`No deck files found in ${site}/${folder} — check folder name and filters`);
+  }
+
+  // Single-deck filter: restrict to one file
+  const filesToProcess = deckFilter
+    ? files.filter(f => f.name === deckFilter)
+    : files;
+
+  if (deckFilter && filesToProcess.length === 0) {
+    throw new Error(`Deck not found in SharePoint: "${deckFilter}"\nAvailable: ${files.map(f => f.name).join(", ")}`);
+  }
+
+  if (deckFilter) {
+    console.error(`[ingest-decks] single-deck mode: ${deckFilter}`);
   }
 
   const state = loadDeckState(codename);
@@ -335,7 +349,7 @@ export async function ingestDecks(
   const limit = pLimit(1); // sequential: LibreOffice can't handle concurrent conversions
   let newThreads = 0;
 
-  await Promise.all(files.map(f => limit(async () => {
+  await Promise.all(filesToProcess.map(f => limit(async () => {
     const key = fileKey(f);
     if (state.files[f.name] === key) {
       console.error(`[ingest-decks] cached: ${f.name}`);

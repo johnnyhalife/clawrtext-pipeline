@@ -11,9 +11,10 @@ function arg(name: string): string | undefined {
   return idx !== -1 ? process.argv[idx + 1] : undefined;
 }
 
-const phaseRaw = arg("phase") ?? "all";
-const phases   = phaseRaw.split(",").map(p => p.trim()).filter(Boolean);
-const codename = arg("codename");
+const phaseRaw  = arg("phase") ?? "all";
+const phases    = phaseRaw.split(",").map(p => p.trim()).filter(Boolean);
+const codename  = arg("codename");
+const deckFilter = arg("deck"); // optional: restrict to one deck filename
 
 if (!codename) {
   console.error("Usage:");
@@ -39,12 +40,12 @@ if (!codename) {
 async function runPhase(phase: string): Promise<void> {
   switch (phase) {
     case "ingest":
-      await ingestDecks(codename!);
+      await ingestDecks(codename!, deckFilter);
       break;
 
     case "map": {
       // map + reduce in one pass: each deck is reduced and appended as soon as its slides are extracted
-      const extracted = await mapDecks(codename!);
+      const extracted = await mapDecks(codename!, deckFilter);
       await reduceDecks(codename!, groupByDeck(extracted));
       break;
     }
@@ -63,11 +64,11 @@ async function runPhase(phase: string): Promise<void> {
       break;
 
     case "all":
-      await ingestDecks(codename!);
-      const extracted = await mapDecks(codename!);  // nemotron extracts slides
-      await reduceDecks(codename!, groupByDeck(extracted));  // entries written as each deck completes
+      await ingestDecks(codename!, deckFilter);
+      const extracted = await mapDecks(codename!, deckFilter);
+      await reduceDecks(codename!, groupByDeck(extracted));
       await embed(codename!);
-      await updateCompiledTruth(codename!);  // runs once all entries are written
+      await updateCompiledTruth(codename!);
       break;
 
     default:

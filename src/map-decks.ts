@@ -131,7 +131,7 @@ async function extractSlide(thread: Thread): Promise<ExtractedThread> {
 
 // ── Main ────────────────────────────────────────────────────────────
 
-export async function mapDecks(codename: string): Promise<ExtractedThread[]> {
+export async function mapDecks(codename: string, deckFilter?: string): Promise<ExtractedThread[]> {
   const threadsPath = statePath(codename, "threads.jsonl");
   if (!existsSync(threadsPath)) {
     throw new Error(`threads.jsonl not found — run ingest-decks first: ${threadsPath}`);
@@ -141,9 +141,19 @@ export async function mapDecks(codename: string): Promise<ExtractedThread[]> {
     .split("\n")
     .filter(Boolean)
     .map(line => JSON.parse(line) as Thread)
-    .filter(t => t.uid.startsWith("deck:")); // only deck-sourced threads
+    .filter(t => t.uid.startsWith("deck:")) // only deck-sourced threads
+    .filter(t => {
+      if (!deckFilter) return true;
+      // uid: deck:<codename>:<slugDeck>:slide<N> — match slug derived from deck filename
+      const slug = deckFilter.replace(/\.[^.]+$/, "").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+      return t.uid.split(":")[2] === slug;
+    });
 
-  console.error(`[map-decks] ${threads.length} slide-threads to process using ${MODEL_MAP_DECKS}`);
+  if (deckFilter) {
+    console.error(`[map-decks] single-deck mode: ${threads.length} slides from "${deckFilter}"`);
+  } else {
+    console.error(`[map-decks] ${threads.length} slide-threads to process using ${MODEL_MAP_DECKS}`);
+  }
 
   const cache = loadCache(codename);
   console.error(`[map-decks] cache: ${cache.size} already extracted`);

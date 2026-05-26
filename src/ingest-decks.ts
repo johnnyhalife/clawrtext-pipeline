@@ -1,4 +1,4 @@
-import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "fs";
+import { createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync, renameSync } from "fs";
 import { readdir } from "fs/promises";
 import { resolve, dirname, basename as pathBasename } from "path";
 import { createHash } from "crypto";
@@ -352,19 +352,29 @@ export async function ingestDecks(
 
   await Promise.all(filesToProcess.map(f => limit(async () => {
     const key = fileKey(f);
-    if (state.files[f.name] === key && !deckFilter) {
+    const fileNameWithoutExt = f.name.replace(/\.[^.]+$/, "");
+    const destPath = resolve(tmpDir, f.name);
+    const slideDir = resolve(tmpDir, `${fileNameWithoutExt}-slides`);
+    const pngsExist = existsSync(slideDir) && readdirSync(slideDir).some(f => f.endsWith(".png"));
+
+    // Skip if hash matches AND PNGs are on disk — regardless of single-deck mode
+    if (state.files[f.name] === key && pngsExist) {
       console.error(`[ingest-decks] cached: ${f.name}`);
+      // Still need to rebuild threads with image_path for this deck
+      const slideImages = readdirSync(slideDir)
+        .filter(f => f.endsWith(".png"))
+        .sort()
+        .map((png, i) => ({ slideIndex: i + 1, pngPath: resolve(slideDir, png), md5: png }));
+      const dateFromName = f.name.match(/^(\d{4}-?\d{2}-?\d{2})/)?.[1]?.replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3") ?? f.lastModified.slice(0, 10);
+      const deckDate = `${dateFromName}T00:00:00Z`;
+      for (const slide of slideImages) {
+        const thread = imageSlideToThread(codename, f.name, deckDate, slide);
+        existingThreads.set(thread.uid, thread);
+      }
       return;
-    }
-    if (state.files[f.name] === key && deckFilter) {
-      console.error(`[ingest-decks] re-processing (single-deck mode): ${f.name}`);
     }
 
     console.error(`[ingest-decks] downloading: ${f.name} (${(f.size / 1024 / 1024).toFixed(1)} MB)`);
-    const ext = f.name.split(".").pop()!.toLowerCase();
-    const destPath = resolve(tmpDir, f.name);
-    const fileNameWithoutExt = f.name.replace(/\.[^.]+$/, "");
-    const slideDir = resolve(tmpDir, `${fileNameWithoutExt}-slides`);
     mkdirSync(slideDir, { recursive: true });
 
     await downloadFile(token, driveId, f.id, destPath);

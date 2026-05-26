@@ -51,11 +51,14 @@ function renderPage(codename: string, identity: string, compiledTruth: string, e
     .map(e => `${formatEntryHeader(e)}\n${e.narrative}`)
     .join("\n\n");
 
+  const lastEntry = entries[entries.length - 1]?.deck_name ?? "none";
+
   return `# ${codename}
 ## Identity
 ${identity}
 
 ## Compiled Truth
+<!-- last-entry: ${lastEntry} -->
 ${compiledTruth}
 
 ---
@@ -113,6 +116,14 @@ export async function updateCompiledTruth(codename: string): Promise<void> {
   const projPath = projectPath(codename);
   const existingMd = existsSync(projPath) ? readFileSync(projPath, "utf-8") : "";
   const identity = parseIdentityBlock(existingMd);
+
+  // Skip if compiled truth is already up to date
+  const lastEntryInPage = existingMd.match(/<!-- last-entry: (.+?) -->/)?.[1]?.trim();
+  const lastEntryInJSONL = entries[entries.length - 1]?.deck_name;
+  if (lastEntryInPage && lastEntryInPage === lastEntryInJSONL) {
+    console.error(`[compiled-truth] up to date (last-entry: ${lastEntryInPage}) — skipping`);
+    return;
+  }
 
   console.error(`[compiled-truth] synthesizing from ${entries.length} deck entries via ${MODEL_COMPILED_TRUTH}`);
 

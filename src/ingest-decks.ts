@@ -351,9 +351,12 @@ export async function ingestDecks(
 
   await Promise.all(filesToProcess.map(f => limit(async () => {
     const key = fileKey(f);
-    if (state.files[f.name] === key) {
+    if (state.files[f.name] === key && !deckFilter) {
       console.error(`[ingest-decks] cached: ${f.name}`);
       return;
+    }
+    if (state.files[f.name] === key && deckFilter) {
+      console.error(`[ingest-decks] re-processing (single-deck mode): ${f.name}`);
     }
 
     console.error(`[ingest-decks] downloading: ${f.name} (${(f.size / 1024 / 1024).toFixed(1)} MB)`);

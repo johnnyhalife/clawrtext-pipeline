@@ -3,6 +3,7 @@ import { mapDecks } from "./map-decks.js";
 import { embed } from "./embed.js";
 import { reduceDeck, reduceDecks, groupByDeck } from "./reduce.js";
 import { updateCompiledTruth } from "./synthesize.js";
+import { extractStack } from "./extract-stack.js";
 
 // ── Args ──────────────────────────────────────────────────────────────────────
 
@@ -25,6 +26,7 @@ if (!codename) {
   console.error("    map            — extract + reduce: nemotron reads slides, entries written per deck");
   console.error("    embed          — embed slide chunks into Qdrant");
   console.error("    compiled-truth — update compiled truth from new entries");
+  console.error("    stack          — extract technology stack from full timeline");
   console.error("    all            — run all phases in order (default)");
   console.error("    reduce         — standalone reduce from .extraction cache (dev/retry only)");
   console.error("");
@@ -58,6 +60,10 @@ async function runPhase(phase: string): Promise<void> {
       await updateCompiledTruth(codename!);
       break;
 
+    case "stack":
+      await extractStack(codename!);
+      break;
+
     case "reduce":
       // Standalone: reads from .extraction cache — use when retrying reduce without re-running nemotron
       await reduceDeck(codename!);
@@ -69,6 +75,7 @@ async function runPhase(phase: string): Promise<void> {
       await reduceDecks(codename!, groupByDeck(extracted));
       await embed(codename!);
       await updateCompiledTruth(codename!);
+      await extractStack(codename!);
       break;
 
     default:

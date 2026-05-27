@@ -8,9 +8,26 @@ const PIPELINE_ROOT = resolve(__dirname, "..");
 
 // ── Env ───────────────────────────────────────────────────────────────────────
 
-export const QDRANT_URL    = process.env.QDRANT_URL    ?? "https://qdrant.swrks.sh";
 export const OLLAMA_URL    = process.env.OLLAMA_URL    ?? "https://spark.swrks.sh/ollama";
 export const CLAWRTEX_ROOT = process.env.CLAWRTEX_ROOT ?? resolve(process.env.HOME ?? "/tmp", "clawrtex");
+
+// ── Postgres (pgvector) ───────────────────────────────────────────────────────
+
+function pgPassword(): string {
+  // 1. Explicit env var
+  if (process.env.CLAWRTEX_PG_PASSWORD) return process.env.CLAWRTEX_PG_PASSWORD;
+  // 2. Secret file (harness default)
+  const secretPath = process.env.CLAWRTEX_PG_PASSWORD_FILE
+    ?? resolve(process.env.HOME ?? "/tmp", "clawdio-harness/secrets/clawrtex_pg_password");
+  try { return readFileSync(secretPath, "utf-8").trim(); } catch {}
+  throw new Error(`clawrtex pg password not found — set CLAWRTEX_PG_PASSWORD or ensure ${secretPath} exists`);
+}
+
+export const PG_HOST     = process.env.CLAWRTEX_PG_HOST ?? "127.0.0.1";
+export const PG_PORT     = Number(process.env.CLAWRTEX_PG_PORT ?? 5435);
+export const PG_DATABASE = process.env.CLAWRTEX_PG_DATABASE ?? "clawrtex";
+export const PG_USER     = process.env.CLAWRTEX_PG_USER     ?? "clawrtex";
+export const PG_PASSWORD = pgPassword();
 
 // ── Credentials ───────────────────────────────────────────────────────────────
 

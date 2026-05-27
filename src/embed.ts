@@ -1,73 +1,30 @@
 import { existsSync, readFileSync } from "fs";
 import { Ollama } from "ollama";
+import { Pool } from "pg";
 import pLimit from "p-limit";
+import { createHash } from "crypto";
 
 import {
   OLLAMA_URL,
-  QDRANT_URL,
-  CLAWRTEX_ROOT,
   MODEL_EMBED,
   EMBED_CONCURRENCY,
+  PG_HOST, PG_PORT, PG_DATABASE, PG_USER, PG_PASSWORD,
   statePath,
 } from "./config.js";
 import type { ExtractedThread } from "./types.js";
 
 const ollama = new Ollama({ host: OLLAMA_URL });
 
-const VECTOR_SIZE = 4096; // qwen3-embedding:8b output dimension
+const VECTOR_SIZE = 4096; // qwen3-embedding:8b actual output dimension
 
-// ── Qdrant REST helpers (plain fetch — bypasses undici Agent Node v26 bug) ───
+// ── Postgres pool ─────────────────────────────────────────────────────────────
 
-async function qdrantFetch(method: string, path: string, body?: unknown): Promise<unknown> {
-  const res = await fetch(`${QDRANT_URL}${path}`, {
-    method,
-    headers: body ? { "Content-Type": "application/json" } : {},
-    body: body ? JSON.stringify(body) : undefined,
+function makePool(): Pool {
+  return new Pool({
+    host: PG_HOST, port: PG_PORT,
+    database: PG_DATABASE, user: PG_USER, password: PG_PASSWORD,
+    max: 5,
   });
-  const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`Qdrant ${method} ${path} → ${res.status}: ${text}`);
-  }
-  return JSON.parse(text);
-}
-
-// ── Collection management ─────────────────────────────────────────────────────
-
-async function ensureCollection(name: string): Promise<void> {
-  try {
-    await qdrantFetch("GET", `/collections/${name}`);
-    console.error(`[embed] collection '${name}' already exists`);
-  } catch {
-    console.error(`[embed] creating collection '${name}'...`);
-    await qdrantFetch("PUT", `/collections/${name}`, {
-      vectors: { size: VECTOR_SIZE, distance: "Cosine" },
-    });
-    console.error(`[embed] collection '${name}' created`);
-  }
-}
-
-// ── Scroll existing ids ───────────────────────────────────────────────────────
-
-async function getExistingIds(collectionName: string): Promise<Set<number>> {
-  const existingIds = new Set<number>();
-  let offset: number | null = null;
-  try {
-    do {
-      const body: Record<string, unknown> = { limit: 256, with_payload: false, with_vector: false };
-      if (offset != null) body.offset = offset;
-      const result = await qdrantFetch("POST", `/collections/${collectionName}/points/scroll`, body) as {
-        result: { points: Array<{ id: number }>; next_page_offset: number | null };
-      };
-      for (const point of result.result.points) {
-        existingIds.add(point.id);
-      }
-      offset = result.result.next_page_offset;
-    } while (offset != null);
-    console.error(`[embed] ${existingIds.size} already in Qdrant`);
-  } catch {
-    console.error(`[embed] could not scroll existing points, will upsert all`);
-  }
-  return existingIds;
 }
 
 // ── Embed one thread ──────────────────────────────────────────────────────────
@@ -78,14 +35,10 @@ async function embedThread(thread: ExtractedThread): Promise<number[]> {
   return response.embedding;
 }
 
-// ── Stable numeric id ─────────────────────────────────────────────────────────
+// ── Stable hash for dedup ─────────────────────────────────────────────────────
 
-function uidToNumericId(uid: string): number {
-  let hash = 0;
-  for (let i = 0; i < uid.length; i++) {
-    hash = ((hash << 5) - hash + uid.charCodeAt(i)) | 0;
-  }
-  return Math.abs(hash);
+function threadHash(thread: ExtractedThread): string {
+  return createHash("md5").update(`${thread.uid}:${thread.summary}`).digest("hex");
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -103,56 +56,64 @@ export async function embed(codename: string): Promise<void> {
 
   console.error(`[embed] ${threads.length} extracted threads to embed`);
 
-  const collectionName = `clawrtex-${codename}`;
-  await ensureCollection(collectionName);
+  const pool = makePool();
 
-  const existingIds = await getExistingIds(collectionName);
-  const toEmbed = threads.filter(t => !existingIds.has(uidToNumericId(t.uid)));
-  console.error(`[embed] ${toEmbed.length} threads need embedding`);
+  try {
+    // Load existing hashes for this codename — skip already-embedded chunks
+    const { rows: existingRows } = await pool.query<{ hash: string }>(
+      `SELECT hash FROM chunks WHERE codename = $1 AND hash IS NOT NULL`,
+      [codename]
+    );
+    const existingHashes = new Set(existingRows.map(r => r.hash));
+    console.error(`[embed] ${existingHashes.size} chunks already in Postgres`);
 
-  if (toEmbed.length === 0) {
-    console.error(`[embed] all threads already embedded — nothing to do`);
-    return;
-  }
+    const toEmbed = threads.filter(t => !existingHashes.has(threadHash(t)));
+    console.error(`[embed] ${toEmbed.length} threads need embedding`);
 
-  let done = 0;
-  const limit = pLimit(EMBED_CONCURRENCY);
+    if (toEmbed.length === 0) {
+      console.error(`[embed] all threads already embedded — nothing to do`);
+      return;
+    }
 
-  const BATCH_SIZE = 8;
-  const batches: ExtractedThread[][] = [];
-  for (let i = 0; i < toEmbed.length; i += BATCH_SIZE) {
-    batches.push(toEmbed.slice(i, i + BATCH_SIZE));
-  }
+    let done = 0;
+    const limit = pLimit(EMBED_CONCURRENCY);
 
-  for (const batch of batches) {
-    const points = await Promise.all(
-      batch.map(thread =>
+    await Promise.all(
+      toEmbed.map(thread =>
         limit(async () => {
           const vector = await embedThread(thread);
+          const hash = threadHash(thread);
+
+          // pgvector expects '[x,y,z,...]' string format
+          const vectorStr = `[${vector.join(",")}]`;
+
+          await pool.query(
+            `INSERT INTO chunks
+               (codename, source, deck_name, deck_date, slide_index, body, embedding, hash)
+             VALUES ($1, $2, $3, $4, $5, $6, $7::vector, $8)
+             ON CONFLICT (hash) DO NOTHING`,
+            [
+              thread.codename,
+              "decks",
+              thread.topic ?? null,
+              null,             // deck_date populated during reduce phase (future)
+              null,
+              thread.summary,
+              vectorStr,
+              hash,
+            ]
+          );
+
           done++;
           if (done % 20 === 0 || done === toEmbed.length) {
             console.error(`[embed] ${done}/${toEmbed.length} embedded`);
           }
-          return {
-            id: uidToNumericId(thread.uid),
-            vector,
-            payload: {
-              uid: thread.uid,
-              codename: thread.codename,
-              topic: thread.topic,
-              summary: thread.summary,
-              decisions: thread.decisions,
-              action_items: thread.action_items,
-              sentiment: thread.sentiment,
-              has_external: thread.has_external,
-            },
-          };
         })
       )
     );
 
-    await qdrantFetch("PUT", `/collections/${collectionName}/points?wait=true`, { points });
+    console.error(`[embed] ✓ upserted ${toEmbed.length} chunks into Postgres`);
+  } finally {
+    await pool.end();
   }
-
-  console.error(`[embed] upserted ${toEmbed.length} points → collection '${collectionName}'`);
 }

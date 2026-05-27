@@ -3,6 +3,7 @@ import pLimit from "p-limit";
 import { writeFileSync, existsSync, readFileSync, mkdirSync } from "fs";
 import { dirname } from "path";
 import { OLLAMA_URL, MODEL_REDUCE, REDUCE_CONCURRENCY, statePath } from "./config.js";
+import { db } from "./db.js";
 import type { ExtractedThread } from "./types.js";
 import { renderPrompt } from "./prompts.js";
 import { appendEntryToPage } from "./synthesize.js";
@@ -85,12 +86,54 @@ export function groupByDeck(slides: ExtractedThread[]): Map<string, ExtractedThr
 
 // ── Core reduce runner (accepts pre-grouped slides) ───────────────────────────
 
+// ── PG: load already-processed (codename, deck_name, deck_hash, model) triples ──
+
+async function loadProcessedFromPG(codename: string): Promise<Set<string>> {
+  try {
+    const { rows } = await db().query<{ deck_name: string; deck_hash: string; model: string }>(
+      `SELECT deck_name, deck_hash, model FROM evidence_trail WHERE codename = $1`,
+      [codename]
+    );
+    // Key: deck_name:deck_hash:model — noop only if all three match
+    return new Set(rows.map(r => `${r.deck_name}:${r.deck_hash ?? ""}:${r.model ?? ""}`));
+  } catch {
+    console.error(`[reduce] could not load evidence_trail from PG — falling back to JSONL cache`);
+    return new Set();
+  }
+}
+
+async function upsertEvidenceTrail(codename: string, entry: DeckEntry, deckHash: string): Promise<void> {
+  await db().query(
+    `INSERT INTO evidence_trail
+       (codename, source, deck_name, deck_date, model, slide_count, deck_hash, run_at)
+     VALUES ($1, 'decks', $2, $3, $4, $5, $6, now())
+     ON CONFLICT (codename, deck_name, deck_hash, model) DO NOTHING`,
+    [
+      codename,
+      entry.deck_name,
+      entry.deck_date === "unknown" ? null : entry.deck_date,
+      MODEL_REDUCE,
+      entry.slide_count,
+      deckHash,
+    ]
+  );
+}
+
 export async function reduceDecks(
   codename: string,
-  byDeck: Map<string, ExtractedThread[]>
+  byDeck: Map<string, ExtractedThread[]>,
+  deckHashes: Map<string, string> = new Map()
 ): Promise<void> {
   const existing = new Set(loadEntries(codename).map(e => e.deck_name));
-  const pending = [...byDeck.entries()].filter(([slug]) => !existing.has(slug));
+  const pgProcessed = await loadProcessedFromPG(codename);
+  // Noop if: in JSONL cache AND (in PG with same hash+model OR no hash available)
+  const pending = [...byDeck.entries()].filter(([slug]) => {
+    if (!existing.has(slug)) return true;   // not in JSONL cache → must run
+    const hash = deckHashes.get(slug) ?? "";
+    const pgKey = `${slug}:${hash}:${MODEL_REDUCE}`;
+    if (hash && pgProcessed.has(pgKey)) return false;  // PG says noop
+    return false;  // in JSONL, no hash info → treat as done
+  });
 
   if (pending.length === 0) {
     console.error(`[reduce] all ${byDeck.size} decks already reduced — nothing to do`);
@@ -119,9 +162,17 @@ export async function reduceDecks(
           reduced_at: new Date().toISOString(),
         };
 
-        appendEntry(codename, entry);       // persist to .entries JSONL cache
+        appendEntry(codename, entry);        // persist to .entries JSONL cache
         appendEntryToPage(codename, entry);   // append to project .md immediately
-        console.error(`[reduce] ✓ ${deckFilename}`);
+
+        // Write to PG evidence_trail
+        const deckHash = deckHashes.get(deckSlug) ?? "";
+        try {
+          await upsertEvidenceTrail(codename, entry, deckHash);
+          console.error(`[reduce] ✓ ${deckFilename} (evidence_trail written)`);
+        } catch (err) {
+          console.error(`[reduce] ⚠ ${deckFilename} — evidence_trail write failed: ${err}`);
+        }
       })
     )
   );

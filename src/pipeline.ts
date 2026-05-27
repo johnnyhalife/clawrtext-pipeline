@@ -4,6 +4,7 @@ import { embed } from "./embed.js";
 import { reduceDeck, reduceDecks, groupByDeck } from "./reduce.js";
 import { updateCompiledTruth } from "./synthesize.js";
 import { extractStack } from "./extract-stack.js";
+import { closeDb } from "./db.js";
 
 // ── Args ──────────────────────────────────────────────────────────────────────
 
@@ -36,6 +37,11 @@ if (!codename) {
   console.error("    npx tsx src/pipeline.ts --codename eulophia --phase compiled-truth");
   process.exit(1);
 }
+
+// Ensure PG pool closes cleanly on exit
+process.on("exit", () => { closeDb().catch(() => {}); });
+process.on("SIGINT",  () => closeDb().then(() => process.exit(0)).catch(() => process.exit(1)));
+process.on("SIGTERM", () => closeDb().then(() => process.exit(0)).catch(() => process.exit(1)));
 
 // ── Phase runner ──────────────────────────────────────────────────────────────
 

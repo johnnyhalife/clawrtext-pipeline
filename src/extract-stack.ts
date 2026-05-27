@@ -1,6 +1,7 @@
 import { Ollama } from "ollama";
 import { existsSync, readFileSync, writeFileSync } from "fs";
 import { OLLAMA_URL, MODEL_STACK, statePath, projectPath } from "./config.js";
+import { updateStackInPG } from "./synthesize.js";
 import { renderPrompt } from "./prompts.js";
 import type { DeckEntry } from "./reduce.js";
 
@@ -107,5 +108,13 @@ export async function extractStack(codename: string): Promise<void> {
       writeFileSync(pagePath, patched, "utf-8");
       console.error(`[extract-stack] ✓ patched Stack in ${pagePath}`);
     }
+  }
+
+  // Write stack into PG compiled_truth
+  try {
+    await updateStackInPG(codename, stack);
+    console.error(`[extract-stack] ✓ updated PG compiled_truth.stack for ${codename}`);
+  } catch (err) {
+    console.error(`[extract-stack] ⚠ PG stack write failed: ${err}`);
   }
 }

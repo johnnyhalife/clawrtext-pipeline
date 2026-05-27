@@ -25,8 +25,10 @@ export interface DeckEntry {
 
 function deckDateFromName(deckName: string): string {
   // "2025-07-14 - Iteration 1" → "2025-07-14"
-  const m = deckName.match(/^(\d{4}-\d{2}-\d{2})/);
-  return m ? m[1] : "unknown";
+  // "20260420-iteration-review" → "2026-04-20"
+  const m = deckName.match(/^(\d{4}-?\d{2}-?\d{2})/);
+  if (!m) return "unknown";
+  return m[1].replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3");
 }
 
 function loadEntries(codename: string): DeckEntry[] {

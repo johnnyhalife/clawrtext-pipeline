@@ -78,7 +78,17 @@ export async function extractStack(codename: string): Promise<void> {
     if (!seen.has(canonicalKey)) seen.set(canonicalKey, canonical);
   }
 
-  const items = [...seen.values()].sort((a, b) => a.localeCompare(b));
+  // Drop items that are a substring of a more-specific item (e.g. "LangChain" ⊂ "LangChain Agent")
+  const deduped = [...seen.values()].filter(item => {
+    const lower = item.toLowerCase();
+    return ![...seen.values()].some(other => {
+      if (other === item) return false;
+      const otherLower = other.toLowerCase();
+      return otherLower.includes(lower) && otherLower !== lower;
+    });
+  });
+
+  const items = deduped.sort((a, b) => a.localeCompare(b));
 
   const stack = items.join(", ");
   console.error(`[extract-stack] ${items.length} items extracted`);

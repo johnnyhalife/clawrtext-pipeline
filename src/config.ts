@@ -59,6 +59,7 @@ export const MODEL_MAP_DECKS      = modelFor("map-decks",      "MODEL_MAP_DECKS"
 export const MODEL_EMBED          = modelFor("embed",           "MODEL_EMBED",           "qwen3-embedding:8b");
 export const MODEL_REDUCE         = modelFor("reduce",          "MODEL_REDUCE",          "qwen3.6:35b");
 export const MODEL_COMPILED_TRUTH = modelFor("compiled-truth",  "MODEL_COMPILED_TRUTH",  "qwen3.6:35b");
+export const MODEL_STACK          = modelFor("stack",           "MODEL_STACK",           "qwen3.6:35b");
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 

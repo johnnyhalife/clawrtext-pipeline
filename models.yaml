@@ -6,3 +6,4 @@ map-decks: nemotron3:33b        # vision model — reads slide images
 embed: qwen3-embedding:8b       # embeddings
 reduce: qwen3.6:35b             # per-deck summarization
 compiled-truth: qwen3.6:35b     # incremental compiled truth synthesis
+stack: qwen3.6:35b              # tech stack extraction (think:false — nemotron exhausts budget on thinking)

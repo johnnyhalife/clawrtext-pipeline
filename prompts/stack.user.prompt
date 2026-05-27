@@ -1,3 +1,9 @@
 List every technology, tool, platform, framework, cloud service, database, and infrastructure component mentioned below. Output only a comma-separated list.
 
+RULES:
+- Include only real, named technologies: languages, frameworks, cloud services, open-source tools, databases, protocols, and infrastructure products.
+- Exclude internal project codenames, feature names, module names, or team-specific identifiers (e.g. "Orchid", "Bikeshed", "Marigold" are codenames, not technologies).
+- Deduplicate: include each technology only once, using its canonical casing (e.g. "AKS" not "AKS" and "Azure Kubernetes Service" both).
+- No explanations. No bullets. No markdown. Only the flat comma-separated list.
+
 {{context}}

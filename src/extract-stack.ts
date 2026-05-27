@@ -55,12 +55,30 @@ export async function extractStack(codename: string): Promise<void> {
   const raw = response.message.content.trim();
   console.error(`[extract-stack] raw output: ${raw.slice(0, 400)}`);
 
-  // Normalize: deduplicate, strip accidental bullets, sort alphabetically
-  const items = [...new Set(
-    raw.split(",")
-      .map(s => s.trim().replace(/^[-•*\s]+/, ""))
-      .filter(s => s.length > 0 && s.length < 80)
-  )].sort();
+  // Known aliases: map verbose form → canonical short form (add as needed)
+  const ALIASES: Record<string, string> = {
+    "azure kubernetes service": "AKS",
+    "google kubernetes engine":  "GKE",
+    "amazon elastic kubernetes service": "EKS",
+    "azure container registry": "ACR",
+    "azure container apps":     "ACA",
+    "azure active directory":   "Entra ID",
+    "microsoft entra id":       "Entra ID",
+    "github actions":           "GitHub Actions",
+  };
+
+  // Normalize: strip bullets, apply aliases, case-insensitive dedup, sort
+  const seen = new Map<string, string>(); // lowercase key → preferred display form
+  for (const raw_item of raw.split(",")) {
+    const s = raw_item.trim().replace(/^[-•*\s]+/, "");
+    if (!s || s.length >= 80) continue;
+    const key = s.toLowerCase();
+    const canonical = ALIASES[key] ?? s;
+    const canonicalKey = canonical.toLowerCase();
+    if (!seen.has(canonicalKey)) seen.set(canonicalKey, canonical);
+  }
+
+  const items = [...seen.values()].sort((a, b) => a.localeCompare(b));
 
   const stack = items.join(", ");
   console.error(`[extract-stack] ${items.length} items extracted`);

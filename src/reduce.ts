@@ -44,6 +44,29 @@ function appendEntry(codename: string, entry: DeckEntry): void {
   writeFileSync(p, JSON.stringify(entry) + "\n", { flag: "a" });
 }
 
+// ── Retry helper ─────────────────────────────────────────────────────────────
+
+async function withRetry<T>(
+  label: string,
+  fn: () => Promise<T>,
+  delays = [30_000, 60_000, 90_000]
+): Promise<T | null> {
+  for (let attempt = 0; attempt <= delays.length; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt === delays.length) {
+        console.error(`[reduce] ✗ ${label} — failed after ${attempt + 1} attempts, skipping: ${err}`);
+        return null;
+      }
+      const wait = delays[attempt];
+      console.error(`[reduce] ⚠ ${label} — attempt ${attempt + 1} failed, retrying in ${wait / 1000}s: ${err}`);
+      await new Promise(r => setTimeout(r, wait));
+    }
+  }
+  return null;
+}
+
 // ── Per-deck reduce ───────────────────────────────────────────────────────────
 
 async function reduceSingleDeck(
@@ -151,7 +174,11 @@ export async function reduceDecks(
         const deckFilename = slides[0]?.deck_filename ?? deckSlug;
         console.error(`[reduce] → ${deckFilename} (${slides.length} slides)`);
 
-        const narrative = await reduceSingleDeck(deckFilename, slides);
+        const narrative = await withRetry(
+          deckFilename,
+          () => reduceSingleDeck(deckFilename, slides)
+        );
+        if (narrative === null) return; // logged + skipped
 
         const entry: DeckEntry = {
           deck_name: deckSlug,

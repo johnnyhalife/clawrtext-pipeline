@@ -102,3 +102,19 @@ export function projectPath(codename: string): string {
 export const MAP_CONCURRENCY    = Number(process.env.MAP_CONCURRENCY    ?? 4);
 export const EMBED_CONCURRENCY  = Number(process.env.EMBED_CONCURRENCY  ?? 8);
 export const REDUCE_CONCURRENCY = Number(process.env.REDUCE_CONCURRENCY ?? 4);  // Spark GB10 handles 4 parallel qwen3.6:35b calls comfortably
+
+// ── Date parsing ──────────────────────────────────────────────────────────────
+
+/**
+ * Parse a deck date from a filename or slug, returning "YYYY-MM-DD".
+ * Handles:
+ *   "2025-07-14 - Iteration 1"  → "2025-07-14"
+ *   "20260420 - Iteration Review.pptx" → "2026-04-20"
+ *   "20260420-iteration-review"  → "2026-04-20"
+ * Falls back to `fallback` (default "unknown") if no date found.
+ */
+export function parseDeckDate(name: string, fallback = "unknown"): string {
+  const m = name.match(/^(\d{4}-?\d{2}-?\d{2})/);
+  if (!m) return fallback;
+  return m[1].replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3");
+}

@@ -6,7 +6,7 @@ import { Readable } from "stream";
 import { pipeline } from "stream/promises";
 import pLimit from "p-limit";
 
-import { CLAWRTEX_ROOT, credentials, statePath } from "./config.js";
+import { CLAWRTEX_ROOT, credentials, statePath, parseDeckDate } from "./config.js";
 import { resolve as resolvePath } from "path";
 
 // ── Registry ──────────────────────────────────────────────────────────────────
@@ -360,8 +360,7 @@ export async function ingestDecks(
         .filter(f => f.endsWith(".png"))
         .sort()
         .map((png, i) => ({ slideIndex: i + 1, pngPath: resolve(slideDir, png), md5: fileMd5Sync(resolve(slideDir, png)) }));
-      const dateFromName = f.name.match(/^(\d{4}-?\d{2}-?\d{2})/)?.[1]?.replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3") ?? f.lastModified.slice(0, 10);
-      const deckDate = `${dateFromName}T00:00:00Z`;
+      const deckDate = `${parseDeckDate(f.name, f.lastModified.slice(0, 10))}T00:00:00Z`;
       for (const slide of slideImages) {
         const thread = imageSlideToThread(codename, f.name, deckDate, slide);
         existingThreads.set(thread.uid, thread);
@@ -382,9 +381,8 @@ export async function ingestDecks(
       return;
     }
 
-    // Derive deck date from lastModified (fallback to filename date prefix)
-    const dateFromName = f.name.match(/^(\d{4}-?\d{2}-?\d{2})/)?.[1]?.replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3") ?? f.lastModified.slice(0, 10);
-    const deckDate = `${dateFromName}T00:00:00Z`;
+    // Derive deck date from filename (fallback to lastModified)
+    const deckDate = `${parseDeckDate(f.name, f.lastModified.slice(0, 10))}T00:00:00Z`;
 
     for (const slide of slideImages) {
       const thread = imageSlideToThread(codename, f.name, deckDate, slide);

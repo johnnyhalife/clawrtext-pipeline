@@ -2,7 +2,7 @@ import { Ollama } from "ollama";
 import pLimit from "p-limit";
 import { writeFileSync, existsSync, readFileSync, mkdirSync } from "fs";
 import { dirname } from "path";
-import { OLLAMA_URL, MODEL_REDUCE, REDUCE_CONCURRENCY, statePath } from "./config.js";
+import { OLLAMA_URL, MODEL_REDUCE, REDUCE_CONCURRENCY, statePath, parseDeckDate } from "./config.js";
 import { db } from "./db.js";
 import type { ExtractedThread } from "./types.js";
 import { renderPrompt } from "./prompts.js";
@@ -23,13 +23,7 @@ export interface DeckEntry {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function deckDateFromName(deckName: string): string {
-  // "2025-07-14 - Iteration 1" → "2025-07-14"
-  // "20260420-iteration-review" → "2026-04-20"
-  const m = deckName.match(/^(\d{4}-?\d{2}-?\d{2})/);
-  if (!m) return "unknown";
-  return m[1].replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3");
-}
+
 
 function loadEntries(codename: string): DeckEntry[] {
   const p = statePath(codename, "entries.jsonl");
@@ -185,7 +179,7 @@ export async function reduceDecks(
         const entry: DeckEntry = {
           deck_name: deckSlug,
           deck_filename: deckFilename,
-          deck_date: deckDateFromName(deckSlug),
+          deck_date: parseDeckDate(deckSlug),
           slide_count: slides.length,
           narrative,
           reduced_at: new Date().toISOString(),

@@ -135,30 +135,25 @@ async function listDeckFiles(token: string, driveId: string, folder: string): Pr
     });
   }
 
-  // Deduplicate: same base name (strip date prefix + extension) — prefer PPTX over PDF
-  const byBase = new Map<string, DeckFile>();
+  // Deduplicate: same exact filename = same file (e.g. both .pptx and .pdf exist) — prefer PPTX over PDF
+  const byName = new Map<string, DeckFile>();
   for (const f of files) {
-    // Base: strip leading date (YYYY-MM-DD or YYYYMMDD), strip extension
-    const base = f.name
-      .replace(/^\d{4}-?\d{2}-?\d{2}\s*[-–]\s*/, "")
-      .replace(/\.[^.]+$/, "")
-      .toLowerCase()
-      .trim();
-    const existing = byBase.get(base);
+    const nameWithoutExt = f.name.replace(/\.[^.]+$/, "").toLowerCase();
+    const existing = byName.get(nameWithoutExt);
     if (!existing) {
-      byBase.set(base, f);
+      byName.set(nameWithoutExt, f);
     } else {
-      // Prefer PPTX over PDF
+      // Same filename, different extension — prefer PPTX over PDF
       const existingIsPptx = existing.name.toLowerCase().endsWith(".pptx");
       const newIsPptx = f.name.toLowerCase().endsWith(".pptx");
       if (newIsPptx && !existingIsPptx) {
         console.error(`[ingest-decks] dedup: prefer ${f.name} over ${existing.name}`);
-        byBase.set(base, f);
+        byName.set(nameWithoutExt, f);
       }
     }
   }
 
-  const result = [...byBase.values()].sort((a, b) => a.name.localeCompare(b.name));
+  const result = [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
   console.error(`[ingest-decks] ${result.length} deck files to process`);
   return result;
 }

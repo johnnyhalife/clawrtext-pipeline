@@ -1,6 +1,7 @@
 import { Ollama } from "ollama";
 import { existsSync, readFileSync, writeFileSync } from "fs";
 import { OLLAMA_URL, MODEL_STACK, statePath, projectPath } from "./config.js";
+import { renderPrompt } from "./prompts.js";
 import type { DeckEntry } from "./reduce.js";
 
 const ollama = new Ollama({ host: OLLAMA_URL });
@@ -45,14 +46,8 @@ export async function extractStack(codename: string): Promise<void> {
     model: MODEL_STACK,
     think: false,
     messages: [
-      {
-        role: "system",
-        content: "You are a technology extractor. Your only job is to output a comma-separated list of technology names found in the input. No explanations, no headers, no bullet points, no markdown. Only a flat comma-separated list.",
-      },
-      {
-        role: "user",
-        content: `List every technology, tool, platform, framework, cloud service, database, and infrastructure component mentioned below. Output only a comma-separated list.\n\n${context}`,
-      },
+      { role: "system", content: renderPrompt("stack", "system") },
+      { role: "user",   content: renderPrompt("stack", "user", { context }) },
     ],
     options: { temperature: 0.0, num_predict: 800 },
   });

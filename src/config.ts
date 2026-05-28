@@ -114,7 +114,11 @@ export const REDUCE_CONCURRENCY = Number(process.env.REDUCE_CONCURRENCY ?? 4);  
  * Falls back to `fallback` (default "unknown") if no date found.
  */
 export function parseDeckDate(name: string, fallback = "unknown"): string {
-  const m = name.match(/^(\d{4}-?\d{2}-?\d{2})/);
-  if (!m) return fallback;
-  return m[1].replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3");
+  // Try YYYY-MM-DD anywhere in name first
+  const dashed = name.match(/(\d{4}-\d{2}-\d{2})/);
+  if (dashed) return dashed[1];
+  // Try YYYYMMDD anywhere in name
+  const compact = name.match(/(\d{4})(\d{2})(\d{2})/);
+  if (compact) return `${compact[1]}-${compact[2]}-${compact[3]}`;
+  return fallback;
 }

@@ -6,7 +6,7 @@ import { OLLAMA_URL, MODEL_REDUCE, REDUCE_CONCURRENCY, statePath, parseDeckDate 
 import { db } from "./db.js";
 import type { ExtractedThread } from "./types.js";
 import { renderPrompt } from "./prompts.js";
-import { appendEntryToPage } from "./synthesize.js";
+
 
 const ollama = new Ollama({ host: OLLAMA_URL });
 
@@ -186,7 +186,7 @@ export async function reduceDecks(
         };
 
         appendEntry(codename, entry);        // persist to .entries JSONL cache
-        appendEntryToPage(codename, entry);   // append to project .md immediately
+        // note: appendEntryToPage removed — compiled-truth fully rewrites the file after all decks finish
 
         // Write to PG evidence_trail
         const deckHash = deckHashes.get(deckSlug) ?? "";

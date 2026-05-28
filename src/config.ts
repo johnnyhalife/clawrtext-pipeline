@@ -88,9 +88,9 @@ const STATE_DIRS: Record<string, string> = {
 export function statePath(codename: string, suffix: string): string {
   const subdir = STATE_DIRS[suffix];
   if (subdir) {
-    return resolve(CLAWRTEX_ROOT, "state", subdir, `${codename}.jsonl`);
+    return resolve(CLAWRTEX_ROOT, ".state", subdir, `${codename}.jsonl`);
   }
-  return resolve(CLAWRTEX_ROOT, "state", `${codename}-${suffix}`);
+  return resolve(CLAWRTEX_ROOT, ".state", `${codename}-${suffix}`);
 }
 
 export function projectPath(codename: string): string {

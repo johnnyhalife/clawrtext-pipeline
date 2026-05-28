@@ -325,7 +325,7 @@ export async function ingestDecks(
   }
 
   const state = loadDeckState(codename);
-  const tmpDir = resolve(CLAWRTEX_ROOT, "state", ".decks-tmp", codename);
+  const tmpDir = resolve(CLAWRTEX_ROOT, ".state", ".decks-tmp", codename);
   mkdirSync(tmpDir, { recursive: true });
 
   const threadsPath = statePath(codename, "threads.jsonl");

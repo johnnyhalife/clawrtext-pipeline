@@ -39,6 +39,19 @@ export async function extractStack(codename: string): Promise<void> {
     return;
   }
 
+  // Skip if compiled truth hasn't changed since last stack run
+  const pagePath = projectPath(codename);
+  const lastEntryMatch = existsSync(pagePath)
+    ? readFileSync(pagePath, "utf-8").match(/<!-- last-entry: (.*?) -->/)
+    : null;
+  const currentLastEntry = lastEntryMatch ? lastEntryMatch[1] : null;
+  const sentinelPath = statePath(codename, "stack-last-entry");
+  const prevLastEntry = existsSync(sentinelPath) ? readFileSync(sentinelPath, "utf-8").trim() : null;
+  if (currentLastEntry && currentLastEntry === prevLastEntry) {
+    console.error(`[extract-stack] noop — compiled truth unchanged (last-entry: ${currentLastEntry})`);
+    return;
+  }
+
   const context = buildContext(codename, entries);
   // Use qwen3.6:35b with think:false — nemotron3:33b exhausts num_predict on thinking, emits empty content
   console.error(`[extract-stack] extracting stack via ${MODEL_STACK} (context: ${context.length} chars)`);
@@ -99,8 +112,13 @@ export async function extractStack(codename: string): Promise<void> {
   writeFileSync(stackPath, stack, "utf-8");
   console.error(`[extract-stack] ✓ wrote ${stackPath}`);
 
+  // Update sentinel so next run noops if compiled truth hasn't changed
+  if (currentLastEntry) {
+    writeFileSync(sentinelPath, currentLastEntry, "utf-8");
+  }
+
   // Patch Identity block in project page
-  const pagePath = projectPath(codename);
+  // (pagePath already declared above for skip check)
   if (existsSync(pagePath)) {
     const md = readFileSync(pagePath, "utf-8");
     const patched = md.replace(/- \*\*Stack:\*\* .*/, `- **Stack:** ${stack}`);

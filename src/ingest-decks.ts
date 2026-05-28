@@ -276,7 +276,7 @@ function imageSlideToThread(codename: string, deckName: string, deckDate: string
 // ── State ─────────────────────────────────────────────────────────────────────
 
 function deckStatePath(codename: string): string {
-  return resolve(CLAWRTEX_ROOT, "state", `${codename}-decks.json`);
+  return resolve(CLAWRTEX_ROOT, ".state", `${codename}-decks.json`);
 }
 
 function loadDeckState(codename: string): DeckState {
@@ -286,7 +286,7 @@ function loadDeckState(codename: string): DeckState {
 }
 
 function saveDeckState(codename: string, state: DeckState): void {
-  mkdirSync(resolve(CLAWRTEX_ROOT, "state"), { recursive: true });
+  mkdirSync(resolve(CLAWRTEX_ROOT, ".state"), { recursive: true });
   writeFileSync(deckStatePath(codename), JSON.stringify(state, null, 2), "utf-8");
 }
 

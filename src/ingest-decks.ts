@@ -90,7 +90,7 @@ async function resolveDriveId(token: string, site: string): Promise<string> {
 // ── File listing ──────────────────────────────────────────────────────────────
 
 // Files to include: Kick Off, Iteration Reviews, Sprint Reviews
-const INCLUDE_PATTERNS = [/iteration/i, /sprint/i, /kick.?off/i, /\bIR\b/, /review/i, /summary/i];
+const INCLUDE_PATTERNS = [/iteration/i, /sprint/i, /kick.?off/i, /\bir\b/i, /review/i, /summary/i];
 // Files to exclude regardless of include match
 const EXCLUDE_PATTERNS = [/proposal/i, /\biso\b/i, /\bsod\b/i, /\beod\b/i];
 // Supported formats

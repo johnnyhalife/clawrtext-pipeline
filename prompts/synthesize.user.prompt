@@ -25,4 +25,5 @@ RULES:
 - Do not mention sprint numbers, iteration labels, or dates.
 - No marketing language. Factual, professional, third person.
 - Do not mention that sources are slides or decks.
+- If evidence consists solely of kick-off or onboarding content with no  delivered engineering work, write a maximum of 2 sentences scoping the engagement. Do not pad with inferred intent or process descriptions.
 - Output ONLY the narrative — no headings, no preamble, no "here is the updated narrative".

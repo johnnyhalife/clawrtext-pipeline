@@ -82,6 +82,7 @@ async function reduceSingleDeck(
 
   const response = await ollama.chat({
     model: MODEL_REDUCE,
+    think: false,
     messages: [{ role: "user", content: prompt }],
     options: { temperature: 0.2 },
   });

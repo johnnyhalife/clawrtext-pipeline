@@ -80,6 +80,7 @@ async function extractSlide(thread: Thread): Promise<ExtractedThread> {
     try {
       const response = await ollama.chat({
         model: MODEL_MAP_DECKS,
+        think: false,
         messages: [
           { role: "system", content: renderPrompt("map-decks", "system") },
           { role: "user", content: buildPrompt(thread), images: imageData ? [imageData] : undefined },

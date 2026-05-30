@@ -194,6 +194,7 @@ export async function updateCompiledTruth(codename: string): Promise<void> {
 
   const response = await ollama.chat({
     model: MODEL_COMPILED_TRUTH,
+    think: false,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },

@@ -247,7 +247,12 @@ async function generateSlideImages(filePath: string, fileName: string, outDir: s
 
 // ── Build Thread from slide image ────────────────────────────────────────────────
 
-function imageSlideToThread(codename: string, deckName: string, deckDate: string, slide: SlideImage): Thread {
+function sharePointUrl(site: string, folder: string, filename: string): string {
+  const encoded = encodeURIComponent(filename);
+  return `https://southworks365.sharepoint.com/sites/${site}/Shared%20Documents/${encodeURIComponent(folder)}/${encoded}`;
+}
+
+function imageSlideToThread(codename: string, deckName: string, deckDate: string, slide: SlideImage, sourceUrl?: string): Thread {
   const slugDeck = deckName.replace(/\.[^.]+$/, "").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
   const uid = `deck:${codename}:${slugDeck}:slide${slide.slideIndex}`;
   const topic = `${deckName} – Slide ${slide.slideIndex}`;
@@ -268,8 +273,9 @@ function imageSlideToThread(codename: string, deckName: string, deckDate: string
     last_delivered: deckDate,
     is_external: true,
     posts: [post],
-    image_path: slide.pngPath,       // absolute path — no guessing at map time
-    deck_filename: deckName,           // original .pptx filename — no reconstruction needed
+    image_path: slide.pngPath,
+    deck_filename: deckName,
+    source_url: sourceUrl,
   };
 }
 
@@ -361,8 +367,9 @@ export async function ingestDecks(
         .sort()
         .map((png, i) => ({ slideIndex: i + 1, pngPath: resolve(slideDir, png), md5: fileMd5Sync(resolve(slideDir, png)) }));
       const deckDate = `${parseDeckDate(f.name, f.lastModified.slice(0, 10))}T00:00:00Z`;
+      const srcUrl = sharePointUrl(site, folder, f.name);
       for (const slide of slideImages) {
-        const thread = imageSlideToThread(codename, f.name, deckDate, slide);
+        const thread = imageSlideToThread(codename, f.name, deckDate, slide, srcUrl);
         existingThreads.set(thread.uid, thread);
       }
       return;
@@ -383,9 +390,10 @@ export async function ingestDecks(
 
     // Derive deck date from filename (fallback to lastModified)
     const deckDate = `${parseDeckDate(f.name, f.lastModified.slice(0, 10))}T00:00:00Z`;
+    const srcUrl = sharePointUrl(site, folder, f.name);
 
     for (const slide of slideImages) {
-      const thread = imageSlideToThread(codename, f.name, deckDate, slide);
+      const thread = imageSlideToThread(codename, f.name, deckDate, slide, srcUrl);
       existingThreads.set(thread.uid, thread);
       newThreads++;
     }

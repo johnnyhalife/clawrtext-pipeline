@@ -190,8 +190,12 @@ export async function mapDecks(codename: string, deckFilter?: string): Promise<E
       limit(async () => {
         const hash = threadHash(thread);
         const extracted = await extractSlide(thread);
-        // Passthrough original filename — not extracted by LLM
+        // Passthrough fields — not extracted by LLM
         if (thread.deck_filename) extracted.deck_filename = thread.deck_filename;
+        if (thread.source_url)    extracted.source_url    = thread.source_url;
+        if (thread.last_delivered) extracted.deck_date    = thread.last_delivered.slice(0, 10);
+        const slideIndex = thread.uid.match(/:slide(\d+)$/)?.[1];
+        if (slideIndex) extracted.slide_index = Number(slideIndex);
         done++;
         if (done % 10 === 0 || done === toProcess.length) {
           console.error(`[map-decks] ${done}/${toProcess.length} extracted`);

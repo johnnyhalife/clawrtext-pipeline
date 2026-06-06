@@ -18,6 +18,7 @@ export interface Thread {
   posts: Post[];
   image_path?: string;      // absolute path to PNG — set by ingest-decks for slide threads
   deck_filename?: string;    // original .pptx filename — set by ingest-decks for slide threads
+  source_url?: string;       // SharePoint web URL to the source file — set by ingest-decks
 }
 
 // ── Extracted (map output) ────────────────────────────────────────────────────
@@ -35,6 +36,9 @@ export const ExtractedThreadSchema = z.object({
 
 export type ExtractedThread = z.infer<typeof ExtractedThreadSchema> & {
   deck_filename?: string;  // passthrough from Thread — not extracted by LLM
+  source_url?: string;     // passthrough from Thread — SharePoint web URL
+  deck_date?: string;      // passthrough from Thread — ISO date string
+  slide_index?: number;    // passthrough from Thread — slide number when source is a deck
 };
 
 // ── Embedded (embed output — stored in Qdrant payload) ────────────────────────

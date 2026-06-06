@@ -89,18 +89,23 @@ export async function embed(codename: string): Promise<void> {
 
           await pool.query(
             `INSERT INTO chunks
-               (codename, source, deck_name, deck_date, slide_index, body, embedding, hash)
-             VALUES ($1, $2, $3, $4, $5, $6, $7::vector, $8)
-             ON CONFLICT (hash) DO NOTHING`,
+               (codename, source, deck_name, deck_date, slide_index, body, embedding, hash, source_url, source_page)
+             VALUES ($1, $2, $3, $4, $5, $6, $7::vector, $8, $9, $10)
+             ON CONFLICT (hash) DO UPDATE SET
+               deck_date  = COALESCE(EXCLUDED.deck_date,  chunks.deck_date),
+               source_url = COALESCE(EXCLUDED.source_url, chunks.source_url),
+               source_page = COALESCE(EXCLUDED.source_page, chunks.source_page)`,
             [
               thread.codename,
               "decks",
               thread.topic ?? null,
-              null,             // deck_date populated during reduce phase (future)
-              null,
+              thread.deck_date   ?? null,
+              thread.slide_index ?? null,
               thread.summary,
               vectorStr,
               hash,
+              thread.source_url  ?? null,
+              null,              // source_page: slide number — needs wiring from ExtractedThread (future)
             ]
           );
 

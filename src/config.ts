@@ -73,6 +73,7 @@ function modelFor(stage: string, envVar: string, fallback: string): string {
 }
 
 export const MODEL_MAP_DECKS      = modelFor("map-decks",      "MODEL_MAP_DECKS",      "nemotron3:33b");
+export const MODEL_DEAL_DOCS      = modelFor("deal-docs",      "MODEL_DEAL_DOCS",      "nemotron3:33b");
 export const MODEL_EMBED          = modelFor("embed",           "MODEL_EMBED",           "qwen3-embedding:8b");
 export const MODEL_REDUCE         = modelFor("reduce",          "MODEL_REDUCE",          "qwen3.6:35b");
 export const MODEL_COMPILED_TRUTH = modelFor("compiled-truth",  "MODEL_COMPILED_TRUTH",  "qwen3.6:35b");
